@@ -3865,8 +3865,8 @@
             // Leader dot
             ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2);
             ctx.fillStyle = "rgba(180, 210, 240, 0.85)"; ctx.fill();
-            // Leader line
-            const labelX = side === 'left' ? x - 60 : x + 60;
+            // Leader line — offset wide enough to clear the cell body
+            const labelX = side === 'left' ? x - 150 : x + 150;
             ctx.strokeStyle = "rgba(160, 200, 225, 0.55)"; ctx.lineWidth = 0.8;
             ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(labelX, y); ctx.stroke();
             // Label text
@@ -5771,44 +5771,34 @@
                 }
             }
 
-            // ── Phase 1-3: cells pinching (before drift separates them) ────────
-            if (drift < 0.98) {
+            // ── Phase 1-3: cells pinching — fade out smoothly as drift begins ──
+            // pinchAlpha goes 1→0 over the first 20% of drift, preventing an
+            // abrupt "2 cells disappeared" jump when the pinching block would end.
+            const pinchAlpha = Math.max(0, 1 - drift * 5);
+            if (pinchAlpha > 0.01) {
+                ctx.save(); ctx.globalAlpha = pinchAlpha;
                 for (const [cellCY, northCs, southCs] of [
                     [topCY, [tLA,tSA], [tLB,tSB]],
                     [botCY, [bLA,bSA], [bLB,bSB]]
                 ]) {
-                    const gv = groove;
-                    drawPinchedCell(450, cellCY, gv);
-
-                    // Chromosomes: north pole (top lobe) and south pole (bottom lobe)
-                    // They stay at their Anaphase-II pole positions, fading as drift begins
-                    const chromAlpha = 1 - drift * 1.2;
-                    if (chromAlpha > 0) {
-                        ctx.save(); ctx.globalAlpha = Math.max(0, chromAlpha);
-                        const northY = cellCY - poleOff * (1 + groove*0.18);
-                        const southY = cellCY + poleOff * (1 + groove*0.18);
-                        drawRodChrom(450 + longOffX,  northY, northCs[0]);
-                        drawRodChrom(450 + shortOffX, northY, northCs[1]);
-                        drawRodChrom(450 + longOffX,  southY, southCs[0]);
-                        drawRodChrom(450 + shortOffX, southY, southCs[1]);
-                        ctx.restore();
-                    }
+                    drawPinchedCell(450, cellCY, groove);
+                    // Chromosomes at north/south poles
+                    const northY = cellCY - poleOff * (1 + groove*0.18);
+                    const southY = cellCY + poleOff * (1 + groove*0.18);
+                    drawRodChrom(450 + longOffX,  northY, northCs[0]);
+                    drawRodChrom(450 + shortOffX, northY, northCs[1]);
+                    drawRodChrom(450 + longOffX,  southY, southCs[0]);
+                    drawRodChrom(450 + shortOffX, southY, southCs[1]);
                 }
+                ctx.restore();
             }
 
             // ── Phase 4: drifting apart into 4 round gametes ──────────────────
-            if (drift > 0.02) {
-                // Final resting positions: 2×2 grid
-                //   topNorth  → (330, 100)   topSouth  → (570, 100)
-                //   botNorth  → (330, 420)   botSouth  → (570, 420)
-                const gamRX = 80, gamRY = 80;
-                // Target positions form a clean 2×2 grid.
-                // Each gamete drifts LATERALLY (x) with minimal vertical shift so
-                // no daughter cell moves against its biological direction.
-                // tN (origin y=80)  → top-left  (290, 120): +40 px down,  -160 px left  ✓
-                // tS (origin y=172) → top-right  (610, 120):  -52 px up,  +160 px right  (small upward ok)
-                // bN (origin y=348) → bot-left   (290, 400): +52 px down, -160 px left  ✓
-                // bS (origin y=440) → bot-right  (610, 400):  -40 px up,  +160 px right ✓
+            // gameteAlpha is the crossfade partner of pinchAlpha: rises 0→1 over
+            // the same first 20% of drift so there is always a continuous visual.
+            if (drift > 0) {
+                const gameteAlpha = Math.min(1, drift * 5);
+                const gamRX = 80;
                 const cells = [
                     { key:'tN', tgtCX:290, tgtCY:120,  originCX:450, originCY:topCY-poleOff, cs:[tLA,tSA] },
                     { key:'tS', tgtCX:610, tgtCY:120,  originCX:450, originCY:topCY+poleOff, cs:[tLB,tSB] },
@@ -5816,31 +5806,27 @@
                     { key:'bS', tgtCX:610, tgtCY:400,  originCX:450, originCY:botCY+poleOff, cs:[bLB,bSB] },
                 ];
 
-                // Slight elastic overshoot at the end
-                const overshoot = drift>0.85 ? Math.sin((drift-0.85)/0.15*Math.PI)*6 : 0;
+                // Slight elastic overshoot on the X axis at the very end
+                const overshoot = drift > 0.85 ? Math.sin((drift-0.85)/0.15*Math.PI)*6 : 0;
 
+                ctx.save(); ctx.globalAlpha = gameteAlpha;
                 for (const g of cells) {
-                    // Primary movement is horizontal: N cells go LEFT, S cells go RIGHT.
-                    // Elastic overshoot is applied on the X axis (direction of travel).
-                    const isLeft = g.key.endsWith('N');  // tN, bN → left side
-                    const cx = g.originCX + (g.tgtCX - g.originCX) * drift + (isLeft ? -overshoot : overshoot);
-                    const cy = g.originCY + (g.tgtCY - g.originCY) * drift;
-                    const r  = gamRX * Math.min(1, drift * 1.6);  // cell grows in as it rounds up
+                    const isLeft = g.key.endsWith('N');
+                    const gcx = g.originCX + (g.tgtCX - g.originCX) * drift + (isLeft ? -overshoot : overshoot);
+                    const gcy = g.originCY + (g.tgtCY - g.originCY) * drift;
+                    const r   = gamRX * Math.min(1, drift * 1.6);
 
-                    drawCytoplasm(cx, cy, r, r, drift);
-                    drawActinCortex(cx, cy, r, r, drift);
-                    drawMembrane(cx, cy, r, r, drift);
+                    drawCytoplasm(gcx, gcy, r, r);
+                    drawActinCortex(gcx, gcy, r, r);
+                    drawMembrane(gcx, gcy, r, r);
 
-                    // Chromosomes: long left, short right — separated so they never overlap
-                    ctx.save(); ctx.globalAlpha = Math.min(1, drift * 1.4);
+                    // Chromosomes: long on left, short on right
                     for (const cs of g.cs) {
                         if (!cs) continue;
-                        // Fixed side-by-side layout: long on left, short on right
-                        const xOff = cs.isLong ? -22 : 22;
-                        drawRodChrom(cx + xOff, cy, cs);
+                        drawRodChrom(gcx + (cs.isLong ? -22 : 22), gcy, cs);
                     }
-                    ctx.restore();
                 }
+                ctx.restore();
             }
         }
 
