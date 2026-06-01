@@ -3448,15 +3448,9 @@
                 ctx.fillStyle = 'rgba(198,158,255,0.84)';
                 ctx.fillText('Morula arrived  •  Endometrium maintained', fx, fy - 22);
                 ctx.restore();
-                if (now - _fertState.implantStart > 5000) {
-                    // Loop back: restart migration
-                    _fertState.phase = 'sperm_migration';
-                    _fertState.startTime = now;
-                    for (const sp of _fertState.sperm) {
-                        sp.progress = -_fertState.sperm.indexOf(sp) * 0.085;
-                        sp.alive = true; sp.trail = [];
-                    }
-                }
+                // Fertilization sequence complete — remain on implantation display.
+                // Do NOT loop back to sperm_migration; ovulationOccurred and
+                // fertilizationSuccessful stay true for the remainder of this cycle.
             }
         }
 
@@ -6024,6 +6018,7 @@
             interkinesisStartTime = 0; prophaseIIStartTime = 0; cytokinesis2StartTime = 0; gameteMaturationStartTime = 0;
             window._anatStartTime = null; _spermInitDone = false; semParticles.length = 0; transportSperm.length = 0;
             _ovStartTime = 0; _ovCycleCount = 0; _ovum = null;
+            _ovulationOccurred = false; _fertilizationSuccessful = false;
             _bloodDrops.length = 0; _lastDropSpawn = 0;
             _fertilizationMode = false; _fertState = null; _ampullaX = 0; _ampullaY = 0;
             const ftDiv = document.getElementById('fertToggle');
@@ -6054,6 +6049,9 @@
             _fertilizationMode = true;
             _fertState = null; _ampullaX = 0; _ampullaY = 0;
             _ovum = null; _ovStartTime = 0; // restart ovulation cycle
+            _ovCycleCount = 0;            // reset counter so cycle detection starts clean
+            _ovulationOccurred = false;   // allow exactly one ovulation in the new cycle
+            _fertilizationSuccessful = false; // clear lock so fertilization can run fresh
             document.getElementById('fertOn').classList.add('fert-active');
             document.getElementById('fertOff').classList.remove('fert-active');
         });
