@@ -81,6 +81,11 @@
         .btn-warning:hover { background: #6e4f32; }
         .btn-special { background: #9b59b6; }
         .btn-special:hover { background: #8e44ad; transform: translateY(-2px); }
+        .btn-fert { background: #2a3a4a; border: 1.5px solid #5a7a8a; font-size:0.78rem; padding:4px 10px; }
+        .btn-fert:hover { background: #3a4a5a; }
+        .btn-fert.fert-active { box-shadow: 0 0 8px currentColor; }
+        .btn-fert-off.fert-active { border-color:#5fc8e0; color:#5fc8e0; background:#0a1e28; }
+        .btn-fert-on.fert-active  { border-color:#e07090; color:#e07090; background:#280a18; }
         button:active { transform: translateY(1px); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         .info-panel {
@@ -127,6 +132,11 @@
         
         <button id="crossingOverBtn" class="btn-special" style="display:none">✨ Initiate Crossing Over</button>
         <button id="nextBtn" class="btn-primary">Next Stage ▶</button>
+    </div>
+    <div id="fertToggle" style="display:none;gap:6px;justify-content:center;align-items:center;margin-top:6px;">
+        <span style="font-size:0.75rem;color:#9ab0b8;">Reproductive Mode:</span>
+        <button id="fertOff" class="btn-fert btn-fert-off fert-active">No Fertilization</button>
+        <button id="fertOn"  class="btn-fert btn-fert-on">Fertilization Mode</button>
     </div>
 
     <div class="info-panel">
@@ -1078,6 +1088,11 @@
         // ovum: { progress 0->1, side 'L'|'R', phase 'transport'|'waiting'|'fading',
         //         waitStart, fadeStart, trail[] }
 
+        // ── Fertilization mode state ───────────────────────────────────────────
+        let _fertilizationMode = false;
+        let _fertState = null;    // null until fertilization animation starts
+        let _ampullaX = 0, _ampullaY = 0;  // where ovum pauses in ampulla
+
         function initSpermSystems() {
             if (_spermInitDone) return;
             _spermInitDone = true;
@@ -1801,6 +1816,14 @@
             _drawOvulationCycle(fx, fy, panelY, panelH, now);
             ctx.restore();
 
+            // ── Fertilization mode animation (overlaid on female panel) ────────
+            if (_fertilizationMode) {
+                ctx.save();
+                ctx.globalAlpha = fadeIn;
+                _drawFertilizationMode(fx, fy, now);
+                ctx.restore();
+            }
+
             ctx.restore();
         }
 
@@ -2092,10 +2115,21 @@
                 if (_ovum.phase === 'transport') {
                     const transportElapsed = now - (_ovStartTime + (_ovCycleCount * OV_CYCLE_MS) + OV_DAY14_FRAC * OV_CYCLE_MS);
                     _ovum.progress = Math.min(1, transportElapsed / TRANSPORT_MS);
-                    if (_ovum.progress >= 1) {
+                    // In fertilization mode: pause ovum in the ampulla region
+                    if (_fertilizationMode && _ovum.progress >= 0.22) {
+                        _ovum.progress = 0.22;
+                        _ovum.phase = 'paused_in_ampulla';
+                        const pFn = _ovum.side === 'L' ? getOvumPathL : getOvumPathR;
+                        const aPos = pFn(0.22);
+                        _ampullaX = aPos.x; _ampullaY = aPos.y;
+                    } else if (!_fertilizationMode && _ovum.progress >= 1) {
                         _ovum.phase = 'waiting';
                         _ovum.waitStart = now;
                     }
+                } else if (_ovum.phase === 'paused_in_ampulla') {
+                    // Stay in ampulla, alpha=1; fertilization animation handles the rest
+                    _ovum.alpha = 1;
+                    if (!_fertilizationMode) { _ovum = null; } // clear if mode switched off
                 } else if (_ovum.phase === 'waiting') {
                     if (now - _ovum.waitStart > WAIT_MS) {
                         _ovum.phase = 'fading';
@@ -2215,7 +2249,10 @@
 
                 // ── Thickness factor t: 0=bare, 1=fully engorged ──────────────
                 let endoT;
-                if (dayNow <= 5) {
+                if (_fertilizationMode) {
+                    // Fertilization mode: lining stays fully engorged — no shedding
+                    endoT = 1.0;
+                } else if (dayNow <= 5) {
                     // Menstruation: shrinks day1→day5  (1 → 0)
                     endoT = Math.max(0, 1 - (dayNow - 1) / 4);
                 } else if (dayNow <= 13) {
@@ -2701,7 +2738,7 @@
             const isMensesActive = cycleFrac < MENSES_END_FRAC;
 
             // Spawn new droplets during menses
-            if (isMensesActive && now - _lastDropSpawn > 280) {
+            if (isMensesActive && !_fertilizationMode && now - _lastDropSpawn > 280) {
                 _lastDropSpawn = now;
                 // Intensity increases days 1–3, decreases days 4–5
                 const dayNow  = cycleFrac * 30;
@@ -2775,6 +2812,427 @@
             ctx.restore();
 
             ctx.restore();  // end clock save
+
+            // ── Fertilization mode: show "No shedding" label ──────────────────
+            if (_fertilizationMode) {
+                ctx.save();
+                ctx.font = 'bold 8.5px Segoe UI, system-ui';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(140,220,140,0.85)';
+                ctx.fillText('✓ No Menstrual Shedding', fx, panelY + panelH - 22);
+                ctx.fillText('Endometrium maintained for implantation', fx, panelY + panelH - 10);
+                ctx.restore();
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        //  FERTILIZATION MODE ANIMATION
+        //  Called from drawReproductiveAnatomy when _fertilizationMode === true.
+        //  Handles all stages: sperm_migration → bubble → zygote → cleavage →
+        //                      morula → implantation
+        // ════════════════════════════════════════════════════════════════════════
+        function _drawFertilizationMode(fx, fy, now) {
+            if (!_fertilizationMode || !_ampullaX) return;
+            const ax = _ampullaX, ay = _ampullaY;
+
+            // ── Init state ───────────────────────────────────────────────────
+            if (!_fertState) {
+                _fertState = {
+                    startTime: now, phase: 'sperm_migration',
+                    sperm: [], bubbleStep: 0, bubbleStepStart: 0,
+                    zygoStart: 0, cleavageIdx: 0, cleavageStart: 0,
+                    morStart: 0, implantStart: 0,
+                };
+                for (let i = 0; i < 10; i++) {
+                    _fertState.sperm.push({
+                        progress: -i * 0.085,
+                        alive: true, winner: i === 9,
+                        dieAt: i < 9 ? 0.25 + (i / 9) * 0.55 : 2,
+                        trail: [], tailPhase: Math.random() * Math.PI * 2,
+                        size: 0.85 + Math.random() * 0.45,
+                        speed: 0.00011 + Math.random() * 0.00003,
+                    });
+                }
+            }
+
+            // ── Fertilization sperm path: vagina → cervix → uterus → left tube → ampulla ──
+            function getFPos(t) {
+                const segs = [
+                    [fx,fy+136, fx,fy+118, fx,fy+106, fx,fy+94],
+                    [fx,fy+94,  fx,fy+58,  fx,fy+16,  fx,fy-8],
+                    [fx,fy-8,   fx-8,fy-30, fx-14,fy-44, fx-22,fy-50],
+                    [fx-22,fy-50, fx-50,fy-72, fx-88,fy-62, fx-105,fy-36],
+                    [fx-105,fy-36, fx-112,fy-20, fx-110,fy-5, ax,ay],
+                ];
+                const idx = Math.min(4, Math.floor(t * 5));
+                const s = t * 5 - idx, u = 1 - s;
+                const [x0,y0,x1,y1,x2,y2,x3,y3] = segs[idx];
+                return {
+                    x: u*u*u*x0 + 3*u*u*s*x1 + 3*u*s*s*x2 + s*s*s*x3,
+                    y: u*u*u*y0 + 3*u*u*s*y1 + 3*u*s*s*y2 + s*s*s*y3,
+                };
+            }
+
+            // ── Phase: sperm_migration ───────────────────────────────────────
+            if (_fertState.phase === 'sperm_migration') {
+                const winner = _fertState.sperm[9];
+                for (const sp of _fertState.sperm) {
+                    sp.progress += sp.speed * 16;
+                    if (!sp.alive) continue;
+                    if (!sp.winner && sp.progress >= sp.dieAt) { sp.alive = false; continue; }
+                    const t = Math.min(1, Math.max(0, sp.progress));
+                    const pos = getFPos(t);
+                    sp.trail.push({ x: pos.x, y: pos.y });
+                    if (sp.trail.length > 20) sp.trail.shift();
+
+                    if (sp.trail.length > 2) {
+                        ctx.save();
+                        for (let i = 1; i < sp.trail.length; i++) {
+                            const a = (i / sp.trail.length) * 0.50;
+                            ctx.beginPath();
+                            ctx.moveTo(sp.trail[i-1].x, sp.trail[i-1].y);
+                            ctx.lineTo(sp.trail[i].x,   sp.trail[i].y);
+                            ctx.strokeStyle = sp.winner ? `rgba(255,210,60,${a})` : `rgba(80,180,255,${a})`;
+                            ctx.lineWidth = sp.size * 1.4 * (i / sp.trail.length);
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+
+                    let ang = 0;
+                    if (sp.trail.length >= 2) {
+                        const p = sp.trail[sp.trail.length - 2];
+                        ang = Math.atan2(pos.y - p.y, pos.x - p.x);
+                    }
+                    ctx.save();
+                    ctx.translate(pos.x, pos.y);
+                    ctx.rotate(ang - Math.PI / 2);
+                    const hr = sp.size * 2.2;
+                    ctx.beginPath(); ctx.ellipse(0, 0, hr * 0.7, hr * 1.3, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = sp.winner ? 'rgba(255,232,80,0.96)' : 'rgba(150,225,255,0.88)';
+                    ctx.shadowBlur = sp.winner ? 10 : 5;
+                    ctx.shadowColor = sp.winner ? '#ffd000' : '#40aaff';
+                    ctx.fill();
+                    ctx.beginPath();
+                    for (let i = 0; i <= 10; i++) {
+                        const ft = i / 10;
+                        const wx = Math.sin(ft * Math.PI * 2.5 - now * 0.006 - sp.tailPhase) * hr * 1.8 * (1 - ft * 0.5);
+                        const wy = -(hr * 1.3 + ft * hr * 5);
+                        i === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy);
+                    }
+                    ctx.strokeStyle = sp.winner ? 'rgba(255,190,40,0.72)' : 'rgba(80,170,255,0.65)';
+                    ctx.lineWidth = sp.size * 0.9; ctx.lineCap = 'round';
+                    ctx.shadowBlur = 4; ctx.shadowColor = sp.winner ? '#ffcc00' : '#3090ff';
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (winner.progress >= 1.0) {
+                    _fertState.phase = 'bubble';
+                    _fertState.bubbleStep = 0;
+                    _fertState.bubbleStepStart = now;
+                }
+
+                ctx.save();
+                ctx.font = 'bold 9px Segoe UI, system-ui';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(150,220,255,0.80)';
+                const alive = _fertState.sperm.filter(s => s.alive).length;
+                ctx.fillText(`${alive} sperm remain — only one will fertilize`, fx, fy + 178);
+                ctx.restore();
+                return;
+            }
+
+            // ── Phase: bubble ────────────────────────────────────────────────
+            if (_fertState.phase === 'bubble') {
+                const STEP_MS = 1800;
+                if (now - _fertState.bubbleStepStart > STEP_MS) {
+                    _fertState.bubbleStep++;
+                    _fertState.bubbleStepStart = now;
+                }
+                if (_fertState.bubbleStep >= 4) {
+                    _fertState.phase = 'zygote';
+                    _fertState.zygoStart = now;
+                    return;
+                }
+                const bStep = _fertState.bubbleStep;
+                const bT = Math.min(1, (now - _fertState.bubbleStepStart) / STEP_MS);
+
+                const W = canvas.width, H = canvas.height;
+                const bx = W / 2, by = H / 2 + 10, br = 88;
+
+                ctx.save();
+                const bg = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+                bg.addColorStop(0,   'rgba(10,5,20,0.97)');
+                bg.addColorStop(0.8, 'rgba(6,2,14,0.94)');
+                bg.addColorStop(1,   'rgba(4,1,10,0.88)');
+                ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2);
+                ctx.fillStyle = bg; ctx.fill();
+                ctx.shadowBlur = 22; ctx.shadowColor = 'rgba(255,160,60,0.55)';
+                ctx.strokeStyle = 'rgba(255,180,80,0.82)'; ctx.lineWidth = 2.8;
+                ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                ctx.font = 'bold 9.5px Segoe UI, system-ui';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255,200,90,0.96)';
+                ctx.fillText('Microscopic Fertilization', bx, by - br + 15);
+
+                const ovR = 24;
+                const oG = ctx.createRadialGradient(bx - 4, by - 4, 1, bx, by, ovR);
+                oG.addColorStop(0,   'rgba(255,190,215,0.90)');
+                oG.addColorStop(0.55,'rgba(240,130,175,0.85)');
+                oG.addColorStop(1,   'rgba(200,80,130,0.78)');
+                ctx.beginPath(); ctx.arc(bx, by, ovR, 0, Math.PI * 2);
+                ctx.fillStyle = oG; ctx.fill();
+                ctx.strokeStyle = 'rgba(255,215,235,0.80)'; ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.beginPath(); ctx.arc(bx, by, ovR + 5, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,230,242,0.38)'; ctx.lineWidth = 3; ctx.stroke();
+
+                if (bStep === 0) {
+                    const sx = bx - ovR - 22 + bT * 12;
+                    ctx.save(); ctx.translate(sx, by); ctx.rotate(bT * -0.25);
+                    ctx.beginPath(); ctx.ellipse(0, 0, 4, 7, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255,232,80,0.96)';
+                    ctx.shadowBlur = 8; ctx.shadowColor = '#ffd000'; ctx.fill();
+                    ctx.beginPath();
+                    for (let i = 0; i <= 8; i++) { const ft = i/8; i===0?ctx.moveTo(0,7+ft*18):ctx.lineTo(0,7+ft*18); }
+                    ctx.strokeStyle = 'rgba(255,200,50,0.70)'; ctx.lineWidth = 1.5; ctx.stroke();
+                    ctx.restore();
+                } else if (bStep === 1) {
+                    const inT = bT;
+                    const sx = bx - ovR * 0.6 * (1 - inT);
+                    ctx.save(); ctx.translate(sx, by);
+                    ctx.beginPath(); ctx.ellipse(0, 0, 4*(1-inT*0.65), 7*(1-inT*0.65), 0, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255,232,80,${0.9-inT*0.65})`; ctx.fill();
+                    ctx.restore();
+                    if (inT > 0.45) {
+                        const na = (inT - 0.45) * 1.82;
+                        ctx.save();
+                        ctx.beginPath(); ctx.arc(bx - 7, by, 6 * na, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(100,160,255,${0.75*na})`;
+                        ctx.shadowBlur = 8; ctx.shadowColor = '#6090ff'; ctx.fill();
+                        ctx.strokeStyle = `rgba(160,200,255,${0.7*na})`; ctx.lineWidth = 1; ctx.stroke();
+                        ctx.restore();
+                    }
+                } else if (bStep === 2) {
+                    const mT = bT;
+                    const fpx = bx + 6 - mT * 7, mpx = bx - 11 + mT * 7;
+                    ctx.save();
+                    ctx.beginPath(); ctx.arc(fpx, by, 7, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255,115,168,0.85)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,185,215,0.78)'; ctx.lineWidth = 1.3; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(mpx, by, 7, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(75,138,255,0.85)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(148,198,255,0.78)'; ctx.lineWidth = 1.3; ctx.stroke();
+                    ctx.restore();
+                    ctx.font = '7px Segoe UI, system-ui';
+                    ctx.fillStyle = 'rgba(255,200,220,0.88)'; ctx.fillText('♀ (n)', fpx, by + 15);
+                    ctx.fillStyle = 'rgba(150,200,255,0.88)'; ctx.fillText('♂ (n)', mpx, by + 15);
+                    ctx.font = '8px Segoe UI, system-ui';
+                    ctx.fillStyle = 'rgba(200,175,255,0.82)';
+                    ctx.fillText('Haploid Male (n) + Haploid Female (n)', bx, by - br + 28);
+                } else {
+                    const pulse = 1 + 0.09 * Math.sin(now * 0.006);
+                    ctx.save();
+                    const fG = ctx.createRadialGradient(bx-2,by-2,1,bx,by,11*pulse);
+                    fG.addColorStop(0, 'rgba(215,155,255,0.96)');
+                    fG.addColorStop(0.55,'rgba(155,85,220,0.88)');
+                    fG.addColorStop(1,'rgba(95,35,175,0.78)');
+                    ctx.beginPath(); ctx.arc(bx, by, 11*pulse, 0, Math.PI*2);
+                    ctx.fillStyle = fG; ctx.shadowBlur = 14; ctx.shadowColor = '#a040ff'; ctx.fill();
+                    ctx.restore();
+                    ctx.font = 'bold 9px Segoe UI, system-ui';
+                    ctx.fillStyle = 'rgba(215,185,255,0.96)';
+                    ctx.fillText('Diploid Zygote Formed (2n)', bx, by + 36);
+                }
+
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath(); ctx.arc(bx - 18 + i * 12, by + br - 10, 3.5, 0, Math.PI*2);
+                    ctx.fillStyle = i <= bStep ? 'rgba(255,192,70,0.92)' : 'rgba(110,75,35,0.50)';
+                    ctx.fill();
+                }
+                const steps = ['Sperm contacts ovum membrane','Sperm nucleus enters ovum',
+                               'Pronuclei move toward each other','Pronuclei fuse'];
+                ctx.font = '8px Segoe UI, system-ui';
+                ctx.fillStyle = 'rgba(228,200,158,0.85)';
+                ctx.fillText(steps[bStep], bx, by + br - 19);
+                ctx.restore();
+                return;
+            }
+
+            // ── Phase: zygote ────────────────────────────────────────────────
+            if (_fertState.phase === 'zygote') {
+                const zyT = Math.min(1, (now - _fertState.zygoStart) / 3000);
+                const pulse = 1 + 0.10 * Math.sin(now * 0.005);
+                ctx.save();
+                ctx.globalAlpha = zyT;
+                const zG = ctx.createRadialGradient(ax, ay, 0, ax, ay, 36 * pulse);
+                zG.addColorStop(0,   'rgba(215,155,255,0.88)');
+                zG.addColorStop(0.4, 'rgba(155,85,220,0.45)');
+                zG.addColorStop(1,   'rgba(95,35,175,0)');
+                ctx.beginPath(); ctx.arc(ax, ay, 36 * pulse, 0, Math.PI * 2);
+                ctx.fillStyle = zG; ctx.fill();
+                const zBody = ctx.createRadialGradient(ax-3, ay-3, 1, ax, ay, 15);
+                zBody.addColorStop(0,   'rgba(238,200,255,0.96)');
+                zBody.addColorStop(0.55,'rgba(188,98,240,0.90)');
+                zBody.addColorStop(1,   'rgba(128,38,200,0.85)');
+                ctx.beginPath(); ctx.arc(ax, ay, 15, 0, Math.PI * 2);
+                ctx.fillStyle = zBody; ctx.shadowBlur = 18; ctx.shadowColor = '#b040ff'; ctx.fill();
+                ctx.beginPath(); ctx.arc(ax, ay, 19, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(225,195,255,0.82)'; ctx.lineWidth = 2.5;
+                ctx.shadowBlur = 0; ctx.stroke();
+                ctx.font = 'bold 9.5px Segoe UI, system-ui';
+                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(228,198,255,0.96)';
+                ctx.shadowBlur = 9; ctx.shadowColor = '#c080ff';
+                ctx.fillText('Zygote (2n)', ax, ay - 26);
+                ctx.restore();
+                if (zyT >= 1) {
+                    _fertState.phase = 'cleavage';
+                    _fertState.cleavageIdx = 0;
+                    _fertState.cleavageStart = now;
+                }
+                return;
+            }
+
+            // ── Phase: cleavage ──────────────────────────────────────────────
+            if (_fertState.phase === 'cleavage') {
+                const STAGE_MS = 2100;
+                if (now - _fertState.cleavageStart > STAGE_MS && _fertState.cleavageIdx < 4) {
+                    _fertState.cleavageIdx++;
+                    _fertState.cleavageStart = now;
+                }
+                if (_fertState.cleavageIdx >= 4 && now - _fertState.cleavageStart > STAGE_MS) {
+                    _fertState.phase = 'morula';
+                    _fertState.morStart = now;
+                    return;
+                }
+                const cellCounts = [1, 2, 4, 8, 16];
+                const nCells = cellCounts[_fertState.cleavageIdx];
+                const cellR = nCells===1?14 : nCells<=2?9 : nCells<=4?7 : nCells<=8?5.5 : 4.2;
+                const clustR = nCells===1?0  : nCells<=2?8 : nCells<=4?10 : nCells<=8?12 : 13.5;
+
+                ctx.save();
+                const clG = ctx.createRadialGradient(ax, ay, 0, ax, ay, clustR + cellR + 10);
+                clG.addColorStop(0,'rgba(195,155,255,0.32)');
+                clG.addColorStop(1,'rgba(145,75,215,0)');
+                ctx.beginPath(); ctx.arc(ax, ay, clustR + cellR + 10, 0, Math.PI*2);
+                ctx.fillStyle = clG; ctx.fill();
+
+                for (let i = 0; i < nCells; i++) {
+                    let ccx = ax, ccy = ay;
+                    if (nCells > 1) {
+                        const ang = (i / nCells) * Math.PI * 2 + now * 0.00025;
+                        ccx = ax + Math.cos(ang) * clustR;
+                        ccy = ay + Math.sin(ang) * clustR;
+                    }
+                    const cG = ctx.createRadialGradient(ccx-cellR*0.3, ccy-cellR*0.3, 0, ccx, ccy, cellR);
+                    cG.addColorStop(0,   'rgba(232,198,255,0.96)');
+                    cG.addColorStop(0.55,'rgba(182,92,232,0.88)');
+                    cG.addColorStop(1,   'rgba(112,32,182,0.80)');
+                    ctx.beginPath(); ctx.arc(ccx, ccy, cellR, 0, Math.PI*2);
+                    ctx.fillStyle = cG; ctx.fill();
+                    ctx.strokeStyle = 'rgba(210,172,255,0.68)'; ctx.lineWidth = 1.0; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(ccx, ccy, cellR * 0.34, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(88,18,148,0.82)'; ctx.fill();
+                }
+
+                ctx.font = 'bold 9px Segoe UI, system-ui';
+                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(210,175,255,0.96)';
+                ctx.fillText('Cleavage Division', ax, ay - clustR - cellR - 13);
+                ctx.font = '8.5px Segoe UI, system-ui';
+                ctx.fillStyle = 'rgba(188,148,255,0.85)';
+                ctx.fillText(nCells + '-Cell Stage', ax, ay + clustR + cellR + 14);
+                if (nCells === 16) {
+                    ctx.fillStyle = 'rgba(175,225,155,0.88)';
+                    ctx.fillText('→ Morula forming', ax, ay + clustR + cellR + 26);
+                }
+                ctx.restore();
+                return;
+            }
+
+            // ── Phase: morula ────────────────────────────────────────────────
+            if (_fertState.phase === 'morula') {
+                const MOR_MS = 5500;
+                const morT = Math.min(1, (now - _fertState.morStart) / MOR_MS);
+                const u = 1 - morT;
+                // Bezier from ampulla toward uterus cavity (fx, fy)
+                const mx3 = u*u*u*ax + 3*u*u*morT*(fx-60) + 3*u*morT*morT*(fx-22) + morT*morT*morT*fx;
+                const my3 = u*u*u*ay + 3*u*u*morT*(fy-52) + 3*u*morT*morT*(fy-50) + morT*morT*morT*fy;
+
+                ctx.save();
+                const mR = 17;
+                const glG = ctx.createRadialGradient(mx3, my3, 0, mx3, my3, mR + 14);
+                glG.addColorStop(0,'rgba(188,148,255,0.52)');
+                glG.addColorStop(1,'rgba(118,58,202,0)');
+                ctx.beginPath(); ctx.arc(mx3, my3, mR + 14, 0, Math.PI*2);
+                ctx.fillStyle = glG; ctx.fill();
+                ctx.beginPath(); ctx.arc(mx3, my3, mR + 5, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(212,182,255,0.62)'; ctx.lineWidth = 2.5; ctx.stroke();
+                for (let i = 0; i < 12; i++) {
+                    const ang = (i / 12) * Math.PI * 2 + 0.2;
+                    const cr = mR * 0.74, cr2 = 4.5;
+                    const ccx = mx3 + Math.cos(ang)*cr, ccy = my3 + Math.sin(ang)*cr;
+                    ctx.beginPath(); ctx.arc(ccx, ccy, cr2, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(212,168,255,0.86)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.7; ctx.stroke();
+                }
+                for (let i = 0; i < 4; i++) {
+                    const ang = (i / 4) * Math.PI * 2;
+                    const ccx = mx3+Math.cos(ang)*mR*0.30, ccy=my3+Math.sin(ang)*mR*0.30;
+                    ctx.beginPath(); ctx.arc(ccx, ccy, 4.2, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(212,168,255,0.86)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.7; ctx.stroke();
+                }
+                ctx.font = 'bold 9px Segoe UI, system-ui';
+                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(208,176,255,0.96)';
+                ctx.fillText('Morula (16-cell stage)', mx3, my3 - mR - 15);
+                if (morT > 0.55) {
+                    ctx.fillStyle = 'rgba(175,225,155,0.90)';
+                    ctx.font = '8.5px Segoe UI, system-ui';
+                    ctx.fillText('Moving to Uterus →', mx3, my3 + mR + 15);
+                }
+                ctx.restore();
+                if (morT >= 1) { _fertState.phase = 'implantation'; _fertState.implantStart = now; }
+                return;
+            }
+
+            // ── Phase: implantation ──────────────────────────────────────────
+            if (_fertState.phase === 'implantation') {
+                const pulse = 1 + 0.06 * Math.sin(now * 0.003);
+                ctx.save();
+                const glG = ctx.createRadialGradient(fx, fy, 0, fx, fy, 24 * pulse);
+                glG.addColorStop(0,'rgba(188,148,255,0.58)');
+                glG.addColorStop(1,'rgba(118,58,202,0)');
+                ctx.beginPath(); ctx.arc(fx, fy, 24 * pulse, 0, Math.PI*2);
+                ctx.fillStyle = glG; ctx.fill();
+                ctx.beginPath(); ctx.arc(fx, fy, 20 * pulse, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(208,178,255,0.65)'; ctx.lineWidth = 2; ctx.stroke();
+                for (let i = 0; i < 9; i++) {
+                    const ang = (i / 9) * Math.PI * 2, r = 13;
+                    ctx.beginPath(); ctx.arc(fx + Math.cos(ang)*r, fy + Math.sin(ang)*r, 4, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(212,172,255,0.84)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(148,88,215,0.55)'; ctx.lineWidth = 0.6; ctx.stroke();
+                }
+                ctx.font = 'bold 9.5px Segoe UI, system-ui';
+                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(158,222,138,0.96)';
+                ctx.shadowBlur = 9; ctx.shadowColor = 'rgba(100,200,80,0.42)';
+                ctx.fillText('Uterus Prepared for Implantation', fx, fy - 34);
+                ctx.shadowBlur = 0;
+                ctx.font = '8.5px Segoe UI, system-ui';
+                ctx.fillStyle = 'rgba(198,158,255,0.84)';
+                ctx.fillText('Morula arrived  •  Endometrium maintained', fx, fy - 22);
+                ctx.restore();
+                if (now - _fertState.implantStart > 5000) {
+                    // Loop back: restart migration
+                    _fertState.phase = 'sperm_migration';
+                    _fertState.startTime = now;
+                    for (const sp of _fertState.sperm) {
+                        sp.progress = -_fertState.sperm.indexOf(sp) * 0.085;
+                        sp.alive = true; sp.trail = [];
+                    }
+                }
+            }
         }
 
         function drawInterphase() {
@@ -5219,9 +5677,11 @@
         }
 
         function nextStage() {
+            const ftDiv = document.getElementById('fertToggle');
             if (currentStage <15) {
                 if (currentStage ===3 && !crossingOverCompleted) { alert("Please click 'Initiate Crossing Over' first and let it complete."); return; }
                 currentStage++;
+                if (ftDiv) ftDiv.style.display = currentStage === 15 ? 'flex' : 'none';
                 if (currentStage ===7) assignCellGroups();
                 updateTargetPositions();
                 if (currentStage ===7) cytokinesisStartTime = 0;
@@ -5263,11 +5723,31 @@
             window._anatStartTime = null; _spermInitDone = false; semParticles.length = 0; transportSperm.length = 0;
             _ovStartTime = 0; _ovCycleCount = 0; _ovum = null;
             _bloodDrops.length = 0; _lastDropSpawn = 0;
+            _fertilizationMode = false; _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            const ftDiv = document.getElementById('fertToggle');
+            if (ftDiv) ftDiv.style.display = 'none';
+            document.getElementById('fertOff')?.classList.add('fert-active');
+            document.getElementById('fertOn')?.classList.remove('fert-active');
         }
 
         document.getElementById("nextBtn").addEventListener("click", nextStage);
         document.getElementById("resetBtn").addEventListener("click", resetSimulation);
         document.getElementById("crossingOverBtn").addEventListener("click", startCrossingOver);
+
+        document.getElementById("fertOff").addEventListener("click", () => {
+            _fertilizationMode = false;
+            _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            _ovum = null;  // clear paused ovum; new one will spawn next ovulation
+            document.getElementById('fertOff').classList.add('fert-active');
+            document.getElementById('fertOn').classList.remove('fert-active');
+        });
+        document.getElementById("fertOn").addEventListener("click", () => {
+            _fertilizationMode = true;
+            _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            _ovum = null; _ovStartTime = 0; // restart ovulation cycle
+            document.getElementById('fertOn').classList.add('fert-active');
+            document.getElementById('fertOff').classList.remove('fert-active');
+        });
         updateTargetPositions();
         render();
     })();
