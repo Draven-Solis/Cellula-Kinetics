@@ -479,21 +479,47 @@
             ctx.restore();
         }
 
-        // Nuclear pore dots on the nucleus envelope
+        // Nuclear pore complexes (NPC) — octameric ring + central channel + cytoplasmic fibrils
         function drawNuclearPores(cx, cy, r, alpha) {
             if (alpha < 0.05) return;
             ctx.save();
-            const N = 14;
+            const N = 12;
             for (let i = 0; i < N; i++) {
                 const angle = (i / N) * Math.PI * 2;
                 const px = cx + Math.cos(angle) * r;
                 const py = cy + Math.sin(angle) * r;
-                // Outer ring
-                ctx.beginPath(); ctx.arc(px, py, 3.2, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(140, 200, 255, ${0.55 * alpha})`; ctx.fill();
-                // Inner bright dot (channel opening)
-                ctx.beginPath(); ctx.arc(px, py, 1.5, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(230, 248, 255, ${0.9 * alpha})`; ctx.fill();
+
+                // ── Cytoplasmic ring — 3D lit disc ─────────────────────────────
+                const pG = ctx.createRadialGradient(px - 1.3, py - 1.3, 0.3, px, py, 4.0);
+                pG.addColorStop(0,    `rgba(195, 228, 255, ${0.78 * alpha})`);
+                pG.addColorStop(0.50, `rgba(132, 188, 248, ${0.62 * alpha})`);
+                pG.addColorStop(1,    `rgba(75,  142, 215, ${0.42 * alpha})`);
+                ctx.beginPath(); ctx.arc(px, py, 4.0, 0, Math.PI*2);
+                ctx.fillStyle = pG; ctx.fill();
+
+                // ── Inner spoke ring (subtle) ──────────────────────────────────
+                ctx.strokeStyle = `rgba(160, 210, 255, ${0.38 * alpha})`;
+                ctx.lineWidth = 0.7;
+                ctx.beginPath(); ctx.arc(px, py, 2.4, 0, Math.PI*2); ctx.stroke();
+
+                // ── Central channel — dark aqueous pore ───────────────────────
+                ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(6, 16, 52, ${0.85 * alpha})`; ctx.fill();
+
+                // ── Cytoplasmic fibrils — 3–4 short lines radiating outward ───
+                for (let f = 0; f < 4; f++) {
+                    const fa   = angle + (f - 1.5) * 0.30;
+                    const outR = r + 4.0;
+                    ctx.beginPath();
+                    ctx.moveTo(cx + Math.cos(fa) * outR, cy + Math.sin(fa) * outR);
+                    ctx.lineTo(cx + Math.cos(fa) * (outR + 5.0), cy + Math.sin(fa) * (outR + 5.0));
+                    ctx.strokeStyle = `rgba(158, 212, 255, ${0.35 * alpha})`;
+                    ctx.lineWidth = 0.7; ctx.stroke();
+                }
+
+                // ── Specular glint ─────────────────────────────────────────────
+                ctx.beginPath(); ctx.arc(px - 1.4, py - 1.4, 1.1, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(232, 250, 255, ${0.60 * alpha})`; ctx.fill();
             }
             ctx.restore();
         }
@@ -620,98 +646,196 @@
             ctx.save();
             const visibleCount = Math.floor(chromatinSegments.length * (0.4 + density * 0.6));
             for (let i = 0; i < visibleCount; i++) {
-                const seg = chromatinSegments[i];
-                const len = radius * (0.38 + density * 0.42);
+                const seg  = chromatinSegments[i];
+                const len  = radius * (0.38 + density * 0.42);
                 const dist = Math.hypot(seg.offX, seg.offY) / 50;
-                const isHetero = dist > 0.55; // peripheral = heterochromatin (darker)
-                ctx.strokeStyle = isHetero
-                    ? `rgba(200, 135, 55, ${0.65 + density * 0.3})`
-                    : `rgba(240, 190, 100, ${0.42 + density * 0.45})`;
-                ctx.lineWidth = isHetero ? 2.2 : 1.5;
-                ctx.shadowBlur = isHetero ? 4 : 0;
-                ctx.shadowColor = `rgba(220, 150, 60, 0.4)`;
-                const x1 = x + Math.cos(seg.angle) * len * 0.22 + seg.offX * (radius / 80);
-                const y1 = y + Math.sin(seg.angle) * len * 0.22 + seg.offY * (radius / 80);
-                const cx1 = x + Math.cos(seg.angle + seg.curve * 0.5) * len * 0.6 + seg.offX * (radius / 80);
-                const cy1 = y + Math.sin(seg.angle + seg.curve * 0.5) * len * 0.6 + seg.offY * (radius / 80);
-                const x2 = x + Math.cos(seg.angle + seg.curve) * len + seg.offX * (radius / 80);
-                const y2 = y + Math.sin(seg.angle + seg.curve) * len + seg.offY * (radius / 80);
+                // Peripheral = heterochromatin (dense, dark blue-grey)
+                // Interior   = euchromatin (open, warm blue-lavender)
+                const isHetero = dist > 0.52;
+                const sc = radius / 80;
+                const x1  = x + Math.cos(seg.angle)               * len * 0.22 + seg.offX * sc;
+                const y1  = y + Math.sin(seg.angle)               * len * 0.22 + seg.offY * sc;
+                const cx1 = x + Math.cos(seg.angle + seg.curve * 0.5) * len * 0.60 + seg.offX * sc;
+                const cy1 = y + Math.sin(seg.angle + seg.curve * 0.5) * len * 0.60 + seg.offY * sc;
+                const x2  = x + Math.cos(seg.angle + seg.curve)   * len        + seg.offX * sc;
+                const y2  = y + Math.sin(seg.angle + seg.curve)   * len        + seg.offY * sc;
+
+                if (isHetero) {
+                    // Heterochromatin — dark, condensed, blue-grey with slight purple
+                    ctx.shadowBlur  = 5;
+                    ctx.shadowColor = `rgba(80, 110, 200, 0.45)`;
+                    ctx.strokeStyle = `rgba(105, 128, 210, ${0.72 + density * 0.26})`;
+                    ctx.lineWidth   = 2.4;
+                } else {
+                    // Euchromatin — open, lavender-blue, finer strands
+                    ctx.shadowBlur  = 2;
+                    ctx.shadowColor = `rgba(130, 160, 240, 0.25)`;
+                    ctx.strokeStyle = `rgba(158, 182, 248, ${0.38 + density * 0.48})`;
+                    ctx.lineWidth   = 1.5;
+                }
+                ctx.lineCap = 'round';
                 ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx1, cy1, x2, y2); ctx.stroke();
             }
+            ctx.shadowBlur = 0;
             ctx.restore();
         }
 
         function drawMitochondrion(x, y, progress) {
             if (progress <= 0) return;
             ctx.save();
-            const angle = Math.atan2(y - 260, x - 450) * 0.35;
+            // Orient tangentially around the cell, slightly varied per position
+            const angle = Math.atan2(y - 260, x - 450) * 0.35 + 0.18;
             ctx.translate(x, y); ctx.rotate(angle);
-            const w = 18, h = 9;
-            // Outer glow
-            ctx.shadowBlur = 10; ctx.shadowColor = `rgba(240, 110, 50, ${progress * 0.6})`;
-            // Outer membrane
-            ctx.beginPath(); ctx.ellipse(0, 0, w, h, 0, 0, Math.PI*2);
-            const omGrad = ctx.createRadialGradient(-w*0.3, -h*0.3, 1, 0, 0, w);
-            omGrad.addColorStop(0, `rgba(220, 110, 65, ${progress * 0.85})`);
-            omGrad.addColorStop(0.6, `rgba(170, 75, 45, ${progress * 0.9})`);
-            omGrad.addColorStop(1, `rgba(120, 50, 30, ${progress * 0.7})`);
-            ctx.fillStyle = omGrad; ctx.fill();
-            ctx.strokeStyle = `rgba(250, 140, 80, ${progress * 0.9})`; ctx.lineWidth = 1.2; ctx.stroke();
-            // Inner matrix (lighter fill)
-            ctx.beginPath(); ctx.ellipse(0, 0, w*0.75, h*0.68, 0, 0, Math.PI*2);
-            ctx.fillStyle = `rgba(200, 100, 60, ${progress * 0.45})`; ctx.fill();
-            // Cristae — vertical folds inside
-            ctx.strokeStyle = `rgba(255, 160, 100, ${progress * 0.75})`; ctx.lineWidth = 1;
+            const W = 24, H = 11;
+
+            // ── Outer membrane glow ────────────────────────────────────────────
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = `rgba(255, 118, 38, ${progress * 0.58})`;
+
+            // ── Outer membrane — 3D sphere-lit gradient (warm orange) ──────────
+            const omG = ctx.createRadialGradient(-W*0.34, -H*0.40, 1, W*0.10, H*0.10, W * 1.08);
+            omG.addColorStop(0,    `rgba(255, 185, 110, ${progress * 0.96})`);
+            omG.addColorStop(0.18, `rgba(242, 138, 62,  ${progress * 0.93})`);
+            omG.addColorStop(0.48, `rgba(198, 85,  36,  ${progress * 0.91})`);
+            omG.addColorStop(0.76, `rgba(148, 50,  18,  ${progress * 0.88})`);
+            omG.addColorStop(1,    `rgba(88,  26,  8,   ${progress * 0.85})`);
+            ctx.beginPath(); ctx.ellipse(0, 0, W, H, 0, 0, Math.PI*2);
+            ctx.fillStyle = omG; ctx.fill();
+
+            // Outer membrane rim
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = `rgba(255, 158, 62, ${progress * 0.52})`;
+            ctx.strokeStyle = `rgba(255, 168, 80, ${progress * 0.84})`;
+            ctx.lineWidth = 1.4; ctx.stroke();
             ctx.shadowBlur = 0;
-            const nCristae = 4;
-            for (let i = -nCristae/2+0.5; i < nCristae/2+0.5; i++) {
-                const bx = i * (w*0.3);
-                const hh = h * 0.5 * (1 - Math.abs(i)/(nCristae/2+1) * 0.4);
-                ctx.beginPath(); ctx.moveTo(bx, -hh); ctx.lineTo(bx, hh); ctx.stroke();
+
+            // ── Intermembrane space — slightly lighter band ────────────────────
+            ctx.beginPath(); ctx.ellipse(0, 0, W*0.84, H*0.74, 0, 0, Math.PI*2);
+            const imsG = ctx.createRadialGradient(-W*0.26, -H*0.30, 1, W*0.08, H*0.08, W*0.84);
+            imsG.addColorStop(0,   `rgba(228, 118, 58, ${progress * 0.58})`);
+            imsG.addColorStop(0.5, `rgba(182, 78,  36, ${progress * 0.52})`);
+            imsG.addColorStop(1,   `rgba(125, 45,  18, ${progress * 0.48})`);
+            ctx.fillStyle = imsG; ctx.fill();
+
+            // ── Matrix — deep dark fill ────────────────────────────────────────
+            ctx.beginPath(); ctx.ellipse(0, 0, W*0.68, H*0.58, 0, 0, Math.PI*2);
+            const mxG = ctx.createRadialGradient(-W*0.20, -H*0.22, 0.8, W*0.05, H*0.05, W*0.68);
+            mxG.addColorStop(0,   `rgba(195, 92,  44, ${progress * 0.72})`);
+            mxG.addColorStop(0.5, `rgba(140, 58,  24, ${progress * 0.82})`);
+            mxG.addColorStop(1,   `rgba(80,  28,  8,  ${progress * 0.88})`);
+            ctx.fillStyle = mxG; ctx.fill();
+
+            // ── Cristae — curved shelf-like inner membrane folds ───────────────
+            // Anatomically: lamellar cristae project inward from inner membrane
+            const nC = 5;
+            ctx.lineWidth = 0.95;
+            for (let i = 0; i < nC; i++) {
+                const cx2 = (i / (nC - 1) - 0.5) * W * 1.10;
+                const reachY = H * 0.46;
+                // Each crista as a small ellipse arc through the matrix
+                ctx.beginPath();
+                ctx.ellipse(cx2, 0, W * 0.052, reachY, 0, -Math.PI * 0.72, Math.PI * 0.72);
+                ctx.strokeStyle = `rgba(255, 155, 82, ${progress * (0.50 + i * 0.05)})`;
+                ctx.stroke();
             }
-            // Specular highlight
-            ctx.beginPath(); ctx.ellipse(-w*0.25, -h*0.3, w*0.2, h*0.18, -0.3, 0, Math.PI*2);
-            ctx.fillStyle = `rgba(255, 200, 150, ${progress * 0.35})`; ctx.fill();
+
+            // ── Outer membrane specular — bright crescent top-left ─────────────
+            ctx.beginPath(); ctx.ellipse(-W*0.28, -H*0.38, W*0.24, H*0.20, -0.32, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255, 228, 188, ${progress * 0.50})`; ctx.fill();
+            // Tight glint
+            ctx.beginPath(); ctx.arc(-W*0.40, -H*0.46, H*0.17, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255, 255, 245, ${progress * 0.65})`; ctx.fill();
+
             ctx.restore();
         }
 
         function drawER(cx, cy, radius, progress) {
             if (progress <= 0) return;
             ctx.save();
-            // Rough ER — layered cisternae with ribosome dots, right/upper side (cool zone)
-            const numArcs = Math.floor(7 * progress);
-            for (let i = 0; i < numArcs; i++) {
-                const startAngle = -0.6 + (i / numArcs) * Math.PI * 1.4;
-                const sweep = 0.75 + Math.sin(i * 1.1) * 0.25;
-                const r = radius * (0.75 + i * 0.055);
-                const offX = Math.cos(startAngle + sweep/2) * 10;
-                const offY = Math.sin(startAngle + sweep/2) * 8;
-                ctx.strokeStyle = `rgba(100, 195, 145, ${progress * (0.55 + i * 0.04)})`;
-                ctx.lineWidth = 2;
-                ctx.shadowBlur = 4; ctx.shadowColor = `rgba(80,200,130,${progress * 0.3})`;
+
+            // ── ROUGH ER — stacked flat cisternae, right/upper-right of nucleus ──
+            // Each cisterna rendered as a filled arc-band (closed curved sac)
+            const numCisternae = Math.max(2, Math.floor(6 * progress));
+            for (let i = 0; i < numCisternae; i++) {
+                const r   = radius * (0.85 + i * 0.060);
+                const a0  = -Math.PI * 0.58 + i * 0.05;
+                const a1  = a0 + Math.PI * 0.60 - i * 0.03;
+                const cisH = 4.0 + i * 0.4;   // half-thickness of cisterna
+
+                // Cisterna filled body (lumen + membrane)
                 ctx.beginPath();
-                ctx.arc(cx + offX, cy + offY, r, startAngle, startAngle + sweep);
-                ctx.stroke();
-                // Ribosome dots on rough ER (every other arc)
-                if (i % 2 === 0 && progress > 0.4) {
-                    ctx.shadowBlur = 0;
-                    for (let j = 0; j <= 5; j++) {
-                        const a = startAngle + (j / 5) * sweep;
-                        const rx2 = cx + offX + Math.cos(a) * r;
-                        const ry2 = cy + offY + Math.sin(a) * r;
-                        ctx.beginPath(); ctx.arc(rx2, ry2, 2.2, 0, Math.PI*2);
-                        ctx.fillStyle = `rgba(225, 185, 95, ${progress * 0.75})`; ctx.fill();
+                ctx.arc(cx, cy, r + cisH, a0, a1);
+                ctx.arc(cx, cy, r - cisH, a1, a0, true);
+                ctx.closePath();
+                const lumG = ctx.createRadialGradient(cx, cy, r - cisH, cx, cy, r + cisH + 5);
+                lumG.addColorStop(0,   `rgba(155, 230, 185, ${progress * 0.68})`);
+                lumG.addColorStop(0.5, `rgba(108, 196, 152, ${progress * 0.60})`);
+                lumG.addColorStop(1,   `rgba(65,  158, 112, ${progress * 0.50})`);
+                ctx.fillStyle = lumG; ctx.fill();
+
+                // Outer leaflet membrane
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = `rgba(80, 205, 145, ${progress * 0.38})`;
+                ctx.beginPath(); ctx.arc(cx, cy, r + cisH, a0, a1);
+                ctx.strokeStyle = `rgba(128, 220, 168, ${progress * 0.90})`;
+                ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.shadowBlur = 0;
+                // Inner leaflet membrane
+                ctx.beginPath(); ctx.arc(cx, cy, r - cisH, a0, a1);
+                ctx.strokeStyle = `rgba(92, 188, 142, ${progress * 0.72})`;
+                ctx.lineWidth = 1.1; ctx.stroke();
+
+                // ── Ribosomes studded on cytoplasmic (outer) face ─────────────
+                if (progress > 0.32) {
+                    const ribA = Math.min(1, (progress - 0.32) / 0.42);
+                    const nRib = 7 + i * 2;
+                    for (let j = 0; j <= nRib; j++) {
+                        const ang = a0 + (j / nRib) * (a1 - a0);
+                        const rx2 = cx + Math.cos(ang) * (r + cisH + 3.8);
+                        const ry2 = cy + Math.sin(ang) * (r + cisH + 3.8);
+                        // 60S large subunit
+                        const rbG = ctx.createRadialGradient(rx2 - 0.9, ry2 - 0.9, 0.2, rx2, ry2, 2.6);
+                        rbG.addColorStop(0,   `rgba(255, 218, 118, ${ribA * 0.96})`);
+                        rbG.addColorStop(0.55,`rgba(215, 168, 65,  ${ribA * 0.88})`);
+                        rbG.addColorStop(1,   `rgba(155, 112, 28,  ${ribA * 0.78})`);
+                        ctx.beginPath(); ctx.arc(rx2, ry2, 2.6, 0, Math.PI*2);
+                        ctx.fillStyle = rbG; ctx.fill();
+                        // 40S small subunit
+                        const sa = ang + Math.PI * 0.5;
+                        ctx.beginPath(); ctx.ellipse(rx2 + Math.cos(sa)*2.2, ry2 + Math.sin(sa)*2.2, 1.8, 1.1, ang, 0, Math.PI*2);
+                        ctx.fillStyle = `rgba(238, 192, 82, ${ribA * 0.85})`; ctx.fill();
                     }
                 }
             }
-            // Smooth ER — flowing tube-like cisternae without ribosomes, left side
-            ctx.shadowBlur = 3; ctx.shadowColor = `rgba(80,200,180,${progress*0.3})`;
-            for (let i = 0; i < Math.floor(4 * progress); i++) {
-                const a0 = Math.PI * 0.6 + i * 0.38;
-                const r = radius * (0.72 + i * 0.07);
-                ctx.strokeStyle = `rgba(80, 210, 185, ${progress * 0.5})`;
-                ctx.lineWidth = 2.5;
-                ctx.beginPath(); ctx.arc(cx - 10, cy + 5, r, a0, a0 + 0.65); ctx.stroke();
+
+            // ── SMOOTH ER — tubular cisternae, lower-left of nucleus ────────────
+            // Tubular: filled round-cross-section tubes with visible lumen
+            const numTubes = Math.max(1, Math.floor(4 * progress));
+            for (let i = 0; i < numTubes; i++) {
+                const r   = radius * (0.78 + i * 0.082);
+                const a0  = Math.PI * 0.50 + i * 0.26;
+                const a1  = a0 + 0.68 + i * 0.04;
+                const tubeH = 4.8 + i * 0.5;
+
+                ctx.beginPath();
+                ctx.arc(cx - 9, cy + 6, r + tubeH, a0, a1);
+                ctx.arc(cx - 9, cy + 6, r - tubeH, a1, a0, true);
+                ctx.closePath();
+                const sG = ctx.createRadialGradient(cx-9, cy+6, r - tubeH, cx-9, cy+6, r + tubeH + 4);
+                sG.addColorStop(0,   `rgba(110, 234, 215, ${progress * 0.75})`);
+                sG.addColorStop(0.5, `rgba(68,  206, 188, ${progress * 0.65})`);
+                sG.addColorStop(1,   `rgba(35,  168, 152, ${progress * 0.52})`);
+                ctx.fillStyle = sG; ctx.fill();
+
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = `rgba(60, 215, 198, ${progress * 0.36})`;
+                ctx.beginPath(); ctx.arc(cx - 9, cy + 6, r + tubeH, a0, a1);
+                ctx.strokeStyle = `rgba(105, 238, 218, ${progress * 0.92})`;
+                ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.beginPath(); ctx.arc(cx - 9, cy + 6, r - tubeH, a0, a1);
+                ctx.strokeStyle = `rgba(72, 204, 185, ${progress * 0.70})`;
+                ctx.lineWidth = 1.1; ctx.stroke();
             }
             ctx.restore();
         }
@@ -720,67 +844,192 @@
             if (progress <= 0) return;
             ctx.save();
             ctx.translate(x, y);
-            const stacks = Math.ceil(6 * progress);
-            // Shadow/glow
-            ctx.shadowBlur = 12; ctx.shadowColor = `rgba(160, 200, 100, ${progress * 0.4})`;
+
+            const stacks = Math.ceil(7 * progress);
+            ctx.shadowBlur = 16;
+            ctx.shadowColor = `rgba(182, 218, 78, ${progress * 0.48})`;
+
             for (let i = 0; i < stacks; i++) {
-                const t = i / (stacks - 1 || 1);
-                const yOff = (i - stacks/2 + 0.5) * 5.5;
-                // taper from cis (wide) to trans (narrow)
-                const w = 20 - i * 1.8;
-                const h = 3.5 - i * 0.1;
-                const brightness = 80 + i * 22;
-                const greenShift = 160 + i * 8;
-                ctx.beginPath(); ctx.ellipse(0, yOff, Math.max(w, 8), h, 0.15, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(${brightness}, ${greenShift}, 70, ${progress * 0.82})`;
-                ctx.fill();
-                ctx.strokeStyle = `rgba(180, ${greenShift + 20}, 110, ${progress * 0.65})`;
-                ctx.lineWidth = 0.9; ctx.stroke();
+                const t    = i / Math.max(stacks - 1, 1);   // 0 = cis face, 1 = trans face
+                const yOff = (i - stacks / 2 + 0.5) * 6.0;
+                // Cisternae taper: cis wide & flatter, trans narrower & more curved
+                const halfW = 26 - t * 12;
+                const halfH = 4.2 - t * 0.8;
+                const bowAng = -0.10 + t * 0.08;   // slight bow per cisterna
+
+                // Color gradient cis→trans: cream-tan to olive-gold
+                const rC = Math.round(200 + t * 38);
+                const gC = Math.round(200 - t * 42);
+                const bC = Math.round(88  - t * 30);
+
+                ctx.save();
+                ctx.rotate(bowAng);
+
+                // ── Lumen fill ─────────────────────────────────────────────────
+                ctx.beginPath(); ctx.ellipse(0, yOff, Math.max(halfW - 1.5, 4), Math.max(halfH - 1.0, 1.2), 0, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(${rC},${gC},${bC},${progress * 0.48})`; ctx.fill();
+
+                // ── Membrane with gradient ─────────────────────────────────────
+                ctx.beginPath(); ctx.ellipse(0, yOff, Math.max(halfW, 5), halfH, 0, 0, Math.PI*2);
+                const gG = ctx.createLinearGradient(-halfW, yOff - halfH, halfW, yOff + halfH);
+                gG.addColorStop(0,   `rgba(${rC-18},${gC+22},${bC+12},${progress * 0.58})`);
+                gG.addColorStop(0.38,`rgba(${rC+22},${gC+12},${bC-8}, ${progress * 0.88})`);
+                gG.addColorStop(0.68,`rgba(${rC+12},${gC+8}, ${bC-4}, ${progress * 0.82})`);
+                gG.addColorStop(1,   `rgba(${rC-14},${gC+18},${bC+8}, ${progress * 0.58})`);
+                ctx.fillStyle = gG; ctx.fill();
+                ctx.strokeStyle = `rgba(${Math.min(255,rC+48)},${Math.min(255,gC+30)},${Math.min(255,bC+22)},${progress * 0.82})`;
+                ctx.lineWidth = 1.1; ctx.stroke();
+
+                // ── Specular stripe on lit side of each cisterna ───────────────
+                ctx.beginPath(); ctx.ellipse(-halfW*0.18, yOff - halfH * 0.5, halfW * 0.42, halfH * 0.30, 0, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 255, 225, ${progress * (0.22 - t * 0.08)})`; ctx.fill();
+
+                ctx.restore();
             }
-            // Vesicle buds (trans face — right side)
-            if (progress > 0.5) {
-                const vp = (progress - 0.5) * 2;
-                const vesiclePositions = [[22, -5, 4], [24, 2, 3.2], [20, 8, 3.8], [26, -1, 2.5]];
-                vesiclePositions.forEach(([vx, vy, vr]) => {
-                    ctx.beginPath(); ctx.arc(vx, vy, vr * vp, 0, Math.PI*2);
-                    ctx.fillStyle = `rgba(180, 220, 110, ${vp * 0.65})`; ctx.fill();
-                    ctx.strokeStyle = `rgba(210, 240, 140, ${vp * 0.5})`; ctx.lineWidth = 0.8; ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // ── Secretory vesicles (trans face, budding outward) ──────────────
+            if (progress > 0.42) {
+                const vp = Math.min(1, (progress - 0.42) / 0.48);
+                [[28, -12, 5.8], [32, -4, 4.5], [26, 5, 5.2], [33, 1, 3.5], [29, -8, 3.8]].forEach(([vx, vy, vr]) => {
+                    const r = vr * vp;
+                    if (r < 0.5) return;
+                    const vG = ctx.createRadialGradient(vx - r*0.40, vy - r*0.40, 0.3, vx + r*0.08, vy + r*0.08, r*1.06);
+                    vG.addColorStop(0,   `rgba(242, 248, 168, ${vp * 0.94})`);
+                    vG.addColorStop(0.38,`rgba(198, 222, 102, ${vp * 0.90})`);
+                    vG.addColorStop(0.75,`rgba(155, 188, 58,  ${vp * 0.84})`);
+                    vG.addColorStop(1,   `rgba(105, 148, 28,  ${vp * 0.78})`);
+                    ctx.beginPath(); ctx.arc(vx, vy, r, 0, Math.PI*2);
+                    ctx.fillStyle = vG; ctx.fill();
+                    ctx.strokeStyle = `rgba(218, 242, 132, ${vp * 0.72})`;
+                    ctx.lineWidth = 0.9; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(vx - r*0.32, vy - r*0.32, r*0.32, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 255, 242, ${vp * 0.42})`; ctx.fill();
                 });
             }
-            // Cisterna highlight
-            ctx.fillStyle = `rgba(220, 255, 160, ${progress * 0.25})`;
-            ctx.beginPath(); ctx.ellipse(-4, -(stacks/2)*5.5 + 2, 12, 1.5, 0.1, 0, Math.PI*2); ctx.fill();
+
+            // ── Transition vesicles (cis face, incoming from ER) ──────────────
+            if (progress > 0.58) {
+                const tvp = Math.min(1, (progress - 0.58) / 0.35);
+                [[-28, -14, 4.2], [-25, -6, 3.5], [-30, 3, 4.0]].forEach(([tx, ty, tr]) => {
+                    const r = tr * tvp;
+                    if (r < 0.5) return;
+                    const tvG = ctx.createRadialGradient(tx - r*0.38, ty - r*0.38, 0.2, tx + r*0.05, ty + r*0.05, r*1.04);
+                    tvG.addColorStop(0,   `rgba(218, 232, 148, ${tvp * 0.88})`);
+                    tvG.addColorStop(0.55,`rgba(178, 205, 90,  ${tvp * 0.82})`);
+                    tvG.addColorStop(1,   `rgba(128, 165, 45,  ${tvp * 0.75})`);
+                    ctx.beginPath(); ctx.arc(tx, ty, r, 0, Math.PI*2);
+                    ctx.fillStyle = tvG; ctx.fill();
+                    ctx.strokeStyle = `rgba(198, 222, 118, ${tvp * 0.62})`;
+                    ctx.lineWidth = 0.8; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(tx - r*0.28, ty - r*0.28, r*0.28, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(252, 255, 238, ${tvp * 0.38})`; ctx.fill();
+                });
+            }
+
             ctx.restore();
         }
 
         function drawRibosome(x, y, progress) {
             if (progress <= 0) return;
             ctx.save();
-            // Two subunit shapes (large + small)
-            ctx.fillStyle = `rgba(220, 175, 80, ${progress * 0.85})`;
-            ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = `rgba(200, 150, 60, ${progress * 0.7})`;
-            ctx.beginPath(); ctx.arc(x + 1.8, y - 1.2, 1.3, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = progress;
+
+            // ── 60S large subunit — dome-shaped, bottom ───────────────────────
+            const lgG = ctx.createRadialGradient(x - 1.0, y - 0.8, 0.2, x + 0.6, y + 0.6, 3.0);
+            lgG.addColorStop(0,    'rgba(255, 222, 122, 0.98)');
+            lgG.addColorStop(0.40, 'rgba(222, 175, 68,  0.94)');
+            lgG.addColorStop(0.78, 'rgba(172, 125, 35,  0.90)');
+            lgG.addColorStop(1,    'rgba(112,  78, 14,  0.85)');
+            ctx.beginPath(); ctx.arc(x, y, 2.8, 0, Math.PI*2);
+            ctx.fillStyle = lgG; ctx.fill();
+
+            // ── 40S small subunit — elongated, offset up-right ────────────────
+            const smG = ctx.createRadialGradient(x + 1.5, y - 1.9, 0.1, x + 2.2, y - 1.3, 2.1);
+            smG.addColorStop(0,    'rgba(248, 205, 100, 0.96)');
+            smG.addColorStop(0.52, 'rgba(205, 158, 52,  0.91)');
+            smG.addColorStop(1,    'rgba(148, 105, 24,  0.86)');
+            ctx.beginPath(); ctx.ellipse(x + 1.9, y - 1.6, 2.1, 1.25, 0.42, 0, Math.PI*2);
+            ctx.fillStyle = smG; ctx.fill();
+
+            // ── Specular glints ───────────────────────────────────────────────
+            ctx.beginPath(); ctx.arc(x - 1.0, y - 1.0, 0.88, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 252, 225, 0.60)'; ctx.fill();
+            ctx.beginPath(); ctx.arc(x + 0.9, y - 2.4, 0.52, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 248, 215, 0.50)'; ctx.fill();
+
             ctx.restore();
         }
 
         function drawCentrosome(x, y, progress) {
             if (progress <= 0) return;
             ctx.save();
-            ctx.shadowBlur = 8; ctx.shadowColor = `rgba(255, 220, 100, ${progress * 0.8})`;
-            // Pericentriolar material (PCM) — fuzzy outer halo
-            const pcmGrad = ctx.createRadialGradient(x, y, 2, x, y, 10);
-            pcmGrad.addColorStop(0, `rgba(255, 210, 80, ${progress * 0.7})`);
-            pcmGrad.addColorStop(1, `rgba(255, 180, 40, 0)`);
-            ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2);
-            ctx.fillStyle = pcmGrad; ctx.fill();
-            // Centriole pair — two small perpendicular barrels
-            ctx.fillStyle = `rgba(255, 200, 80, ${progress * 0.95})`;
-            ctx.beginPath(); ctx.ellipse(x - 3, y, 2.5, 4, 0, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(x + 3, y, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = `rgba(255, 240, 160, ${progress * 0.9})`;
-            ctx.beginPath(); ctx.arc(x - 3, y, 1.2, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(x + 3, y, 1.2, 0, Math.PI*2); ctx.fill();
+
+            // ── PCM — fuzzy pericentriolar material (γ-tubulin cloud) ─────────
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = `rgba(255, 228, 88, ${progress * 0.72})`;
+            const pcmG = ctx.createRadialGradient(x, y, 1.5, x, y, 14);
+            pcmG.addColorStop(0,    `rgba(255, 218, 80,  ${progress * 0.75})`);
+            pcmG.addColorStop(0.40, `rgba(245, 188, 50,  ${progress * 0.40})`);
+            pcmG.addColorStop(0.72, `rgba(218, 155, 32,  ${progress * 0.18})`);
+            pcmG.addColorStop(1,    `rgba(185, 122, 18,  0)`);
+            ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2);
+            ctx.fillStyle = pcmG; ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // ── γ-TuRC puncta — nucleation sites visible in PCM ───────────────
+            [0.30, 1.15, 2.05, 3.00, 4.18, 5.10].forEach(a => {
+                const pr = 7.5 + Math.sin(a * 2.4) * 2.8;
+                ctx.beginPath(); ctx.arc(x + Math.cos(a) * pr, y + Math.sin(a) * pr, 1.15, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 248, 165, ${progress * 0.78})`; ctx.fill();
+            });
+
+            // ── Centriole A — SIDE VIEW (barrel seen lengthwise) ──────────────
+            // Appears as a short fat cylinder with internal triplet lines
+            ctx.save();
+            ctx.translate(x - 3.8, y);
+            const cAG = ctx.createLinearGradient(-3.0, -5.0, 3.0, 5.0);
+            cAG.addColorStop(0,    `rgba(255, 240, 148, ${progress * 0.96})`);
+            cAG.addColorStop(0.32, `rgba(228, 202, 92,  ${progress * 0.92})`);
+            cAG.addColorStop(0.68, `rgba(185, 155, 50,  ${progress * 0.88})`);
+            cAG.addColorStop(1,    `rgba(132, 105, 24,  ${progress * 0.84})`);
+            ctx.beginPath(); ctx.ellipse(0, 0, 3.0, 5.0, 0, 0, Math.PI*2);
+            ctx.fillStyle = cAG; ctx.fill();
+            ctx.strokeStyle = `rgba(255, 242, 162, ${progress * 0.84})`;
+            ctx.lineWidth = 0.95; ctx.stroke();
+            // Triplet doublet lines (internal structure)
+            ctx.strokeStyle = `rgba(255, 218, 102, ${progress * 0.58})`;
+            ctx.lineWidth = 0.72;
+            [-2.2, 0, 2.2].forEach(yy => {
+                ctx.beginPath(); ctx.moveTo(-2.4, yy); ctx.lineTo(2.4, yy); ctx.stroke();
+            });
+            // Specular
+            ctx.beginPath(); ctx.ellipse(-1.1, -2.0, 1.1, 0.55, -0.22, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255, 255, 228, ${progress * 0.55})`; ctx.fill();
+            ctx.restore();
+
+            // ── Centriole B — END-ON VIEW (9-triplet ring cross-section) ──────
+            ctx.save();
+            ctx.translate(x + 3.8, y);
+            const cBG = ctx.createRadialGradient(-1.3, -1.3, 0.4, 0, 0, 4.2);
+            cBG.addColorStop(0,    `rgba(248, 228, 128, ${progress * 0.88})`);
+            cBG.addColorStop(0.52, `rgba(202, 172, 68,  ${progress * 0.84})`);
+            cBG.addColorStop(1,    `rgba(142, 112, 28,  ${progress * 0.80})`);
+            ctx.beginPath(); ctx.arc(0, 0, 4.2, 0, Math.PI*2);
+            ctx.fillStyle = cBG; ctx.fill();
+            ctx.strokeStyle = `rgba(255, 238, 148, ${progress * 0.78})`;
+            ctx.lineWidth = 0.95; ctx.stroke();
+            // 9 microtubule triplets as bright dots in a ring
+            for (let i = 0; i < 9; i++) {
+                const a = (i / 9) * Math.PI * 2 - Math.PI * 0.5;
+                ctx.beginPath(); ctx.arc(Math.cos(a) * 2.5, Math.sin(a) * 2.5, 0.72, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 252, 205, ${progress * 0.85})`; ctx.fill();
+            }
+            // Specular
+            ctx.beginPath(); ctx.arc(-1.6, -1.6, 1.3, 0, Math.PI*2);
+            ctx.fillStyle = `rgba(255, 255, 242, ${progress * 0.40})`; ctx.fill();
+            ctx.restore();
+
             ctx.restore();
         }
 
