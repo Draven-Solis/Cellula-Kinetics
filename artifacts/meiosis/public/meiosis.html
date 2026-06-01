@@ -2845,7 +2845,7 @@
                     else if (elapsed >= 7500) golgiProgress = 1;
                     const golgiX = cx - 155, golgiY = cy + 85;
                     // Rotate so local "up" (cis face, i=0) points toward nucleus
-                    const golgiAngle = Math.PI / 2 + Math.atan2(nY - golgiY, nX - golgiX);
+                    const golgiAngle = Math.PI / 2 + Math.atan2(nY - golgiY, nX - golgiX) + Math.PI;
                     drawGolgi(golgiX, golgiY, golgiProgress, golgiAngle, 0.72);
                 }
 
