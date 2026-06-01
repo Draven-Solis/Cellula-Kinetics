@@ -1888,10 +1888,13 @@
             ctx.fillStyle = 'rgba(248,185,210,0.22)'; ctx.fill();
             ctx.restore();
 
-            // ── Ovaries — 3D ovals with multi-stage follicle detail ──────────
-            function drawOvary(ox, oy, flip) {
+            // ── Ovaries — cycle-phase-aware follicle animation ───────────────
+            // isActive = true on the ovary that ovulates this cycle
+            function drawOvary(ox, oy, flip, cycleFrac, isActive, now) {
                 ctx.save();
-                // Outer 3D gradient body
+                const dayNow = cycleFrac * 30 + 1; // 1–30
+
+                // ── Ovary body ────────────────────────────────────────────────
                 const oG = ctx.createRadialGradient(ox - 8*flip, oy - 6, 3, ox + 5*flip, oy + 5, 26);
                 oG.addColorStop(0,    'rgba(225, 128, 158, 0.92)');
                 oG.addColorStop(0.40, 'rgba(192, 100, 132, 0.88)');
@@ -1901,7 +1904,7 @@
                 ctx.fillStyle = oG; ctx.fill();
                 ctx.strokeStyle = 'rgba(235, 142, 172, 0.94)'; ctx.lineWidth = 2.2; ctx.stroke();
 
-                // ── Primordial follicles — tiny dots on cortex surface ─────────
+                // ── Primordial follicles (always present on cortex) ───────────
                 for (let pi = 0; pi < 8; pi++) {
                     const pa = (pi / 8) * Math.PI * 2;
                     const px2 = ox + Math.cos(pa) * 19, py2 = oy + Math.sin(pa) * 12;
@@ -1909,56 +1912,160 @@
                     ctx.fillStyle = 'rgba(252, 192, 215, 0.65)'; ctx.fill();
                 }
 
-                // ── Primary follicle — small round follicle inside ─────────────
-                const pf1x = ox - 8*flip, pf1y = oy + 3;
-                ctx.beginPath(); ctx.arc(pf1x, pf1y, 4.5, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(238, 158, 188, 0.62)'; ctx.fill();
-                ctx.strokeStyle = 'rgba(248, 178, 205, 0.75)'; ctx.lineWidth = 0.9; ctx.stroke();
-                // Oocyte nucleus inside
-                ctx.beginPath(); ctx.arc(pf1x, pf1y, 2.0, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(252, 212, 228, 0.80)'; ctx.fill();
+                if (isActive) {
+                    // ── ACTIVE OVARY: follicle grows and bursts each cycle ────
 
-                // ── Graafian (mature) follicle — large visible bulge ───────────
-                const gfx = ox + 7*flip, gfy = oy - 2;
-                // Antrum (fluid-filled cavity) — teal-tinted sphere
-                const gG = ctx.createRadialGradient(gfx - 3*flip, gfy - 3, 1, gfx, gfy, 9);
-                gG.addColorStop(0,    'rgba(245, 195, 215, 0.88)');
-                gG.addColorStop(0.50, 'rgba(215, 148, 175, 0.82)');
-                gG.addColorStop(1,    'rgba(175, 100, 135, 0.76)');
-                ctx.beginPath(); ctx.arc(gfx, gfy, 9, 0, Math.PI*2);
-                ctx.fillStyle = gG; ctx.fill();
-                ctx.strokeStyle = 'rgba(245, 175, 200, 0.90)'; ctx.lineWidth = 1.2; ctx.stroke();
-                // Antrum fluid region inside
-                ctx.beginPath(); ctx.arc(gfx, gfy, 6, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(238, 215, 228, 0.42)'; ctx.fill();
-                // Cumulus oophorus — oocyte cluster at one side
-                ctx.beginPath(); ctx.arc(gfx + 3*flip, gfy, 3.2, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(252, 225, 238, 0.75)'; ctx.fill();
-                // Specular on Graafian
-                ctx.beginPath(); ctx.arc(gfx - 3.5*flip, gfy - 3.5, 2.2, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(255, 250, 255, 0.42)'; ctx.fill();
+                    // Phase A  Days 1–5  corpus luteum regressing from prior cycle
+                    if (dayNow <= 5) {
+                        const fade = Math.max(0, 1 - (dayNow - 1) / 4.5);
+                        const clx = ox + 7*flip, cly = oy - 2;
+                        const clG = ctx.createRadialGradient(clx - 2*flip, cly - 2, 0.5, clx, cly, 7);
+                        clG.addColorStop(0,    'rgba(245,210,88,0.88)');
+                        clG.addColorStop(0.55, 'rgba(215,168,55,0.75)');
+                        clG.addColorStop(1,    'rgba(175,125,32,0.60)');
+                        ctx.save(); ctx.globalAlpha = fade;
+                        ctx.beginPath(); ctx.arc(clx, cly, 7, 0, Math.PI*2);
+                        ctx.fillStyle = clG; ctx.fill();
+                        ctx.strokeStyle = 'rgba(238,198,88,0.78)'; ctx.lineWidth = 0.9; ctx.stroke();
+                        ctx.beginPath(); ctx.arc(clx - 1.5*flip, cly - 1.8, 1.5, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(255,248,210,0.50)'; ctx.fill();
+                        ctx.restore();
+                    }
 
-                // ── Corpus luteum — ruptured yellow follicle ───────────────────
-                // Appears after ovulation; shown as yellowish mass at edge
-                const clx = ox + 12*flip*(-1), cly = oy + 7;
-                const clG = ctx.createRadialGradient(clx - 2*flip, cly - 2, 0.5, clx, cly, 6);
-                clG.addColorStop(0,    'rgba(245, 210, 88,  0.78)');
-                clG.addColorStop(0.55, 'rgba(215, 168, 55,  0.70)');
-                clG.addColorStop(1,    'rgba(175, 125, 32,  0.62)');
-                ctx.beginPath(); ctx.arc(clx, cly, 5.5, 0, Math.PI*2);
-                ctx.fillStyle = clG; ctx.fill();
-                ctx.strokeStyle = 'rgba(238, 198, 88, 0.72)'; ctx.lineWidth = 0.9; ctx.stroke();
-                // Specular glint on corpus luteum
-                ctx.beginPath(); ctx.arc(clx - 1.5*flip, cly - 1.8, 1.5, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(255, 248, 210, 0.45)'; ctx.fill();
+                    // Phase B  Days 6–13  dominant follicle growing
+                    if (dayNow >= 6 && dayNow < 14) {
+                        const growT  = Math.min(1, (dayNow - 6) / 8);   // 0→1
+                        const follR  = 4 + growT * 7;                    // 4→11 px
+                        const tense  = dayNow > 12 ? 1 + 0.07 * Math.sin(now * 0.006) : 1;
+                        const gfx = ox + 7*flip, gfy = oy - 2;
 
-                // Ovary specular highlight
+                        // Pre-ovulation tension aura (days 12–13)
+                        if (dayNow > 12) {
+                            const auraA = ((dayNow - 12) / 2) * 0.24 * tense;
+                            ctx.beginPath(); ctx.arc(gfx, gfy, follR * 1.7, 0, Math.PI*2);
+                            ctx.fillStyle = `rgba(255,200,220,${auraA})`; ctx.fill();
+                        }
+
+                        // Graafian follicle body
+                        const gG = ctx.createRadialGradient(gfx - 3*flip, gfy - 3, 1, gfx, gfy, follR * tense);
+                        gG.addColorStop(0,    'rgba(245,195,215,0.92)');
+                        gG.addColorStop(0.45, 'rgba(210,145,178,0.84)');
+                        gG.addColorStop(1,    'rgba(170,95,135,0.74)');
+                        ctx.beginPath(); ctx.arc(gfx, gfy, follR * tense, 0, Math.PI*2);
+                        ctx.fillStyle = gG; ctx.fill();
+                        ctx.strokeStyle = 'rgba(245,175,200,0.92)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+                        // Antrum fluid (interior)
+                        ctx.beginPath(); ctx.arc(gfx, gfy, follR * 0.58 * tense, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(238,215,228,0.38)'; ctx.fill();
+
+                        // Cumulus oophorus (oocyte cluster, appears when large enough)
+                        if (follR > 7) {
+                            ctx.beginPath(); ctx.arc(gfx + 3*flip, gfy, 3, 0, Math.PI*2);
+                            ctx.fillStyle = 'rgba(252,225,238,0.76)'; ctx.fill();
+                        }
+
+                        // Specular
+                        ctx.beginPath(); ctx.arc(gfx - 3.5*flip, gfy - 3.5, 2, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(255,252,255,0.44)'; ctx.fill();
+
+                        // Size label once follicle is prominent
+                        if (growT > 0.45) {
+                            ctx.save();
+                            ctx.font = `${Math.round(5 + growT * 1.5)}px Segoe UI, system-ui`;
+                            ctx.textAlign = 'center';
+                            ctx.fillStyle = `rgba(255,215,232,${growT * 0.88})`;
+                            ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(255,160,200,0.5)';
+                            ctx.fillText('Follicle', gfx, gfy - follR * tense - 5);
+                            ctx.restore();
+                        }
+                    }
+
+                    // Phase C  Day 14  rupture burst ring
+                    if (dayNow >= 14 && dayNow < 18) {
+                        const burstT = Math.min(1, (dayNow - 14) / 4);   // 0→1 over 4 days
+                        const ringR  = 10 + burstT * 16;
+                        const ringA  = Math.max(0, 1 - burstT * 1.25);
+                        const gfx = ox + 7*flip, gfy = oy - 2;
+                        if (ringA > 0.01) {
+                            ctx.save();
+                            ctx.globalAlpha = ringA;
+                            // Expanding ring
+                            ctx.beginPath(); ctx.arc(gfx, gfy, ringR, 0, Math.PI*2);
+                            ctx.strokeStyle = 'rgba(255,205,100,0.92)';
+                            ctx.lineWidth = 2.5;
+                            ctx.shadowBlur = 14; ctx.shadowColor = '#ffcc44'; ctx.stroke();
+                            ctx.shadowBlur = 0;
+                            // Radiating spark particles
+                            for (let si = 0; si < 6; si++) {
+                                const sAng = (si / 6) * Math.PI * 2 + burstT * 1.4;
+                                const sR   = 8 + burstT * 13;
+                                ctx.beginPath(); ctx.arc(
+                                    gfx + Math.cos(sAng) * sR,
+                                    gfy + Math.sin(sAng) * sR,
+                                    1.5 * (1 - burstT), 0, Math.PI * 2);
+                                ctx.fillStyle = 'rgba(255,230,130,0.90)'; ctx.fill();
+                            }
+                            ctx.restore();
+                        }
+                    }
+
+                    // Phase D  Days 14+  corpus luteum forms and persists
+                    if (dayNow >= 14) {
+                        const clT  = Math.min(1, (dayNow - 14) / 4);  // 0→1 over days 14-18
+                        const clR  = 3 + clT * 4;                     // 3→7 px
+                        const clx  = ox + 7*flip, cly = oy - 2;
+                        ctx.save(); ctx.globalAlpha = clT;
+                        const clG = ctx.createRadialGradient(clx - 2*flip, cly - 2, 0.5, clx, cly, clR);
+                        clG.addColorStop(0,    'rgba(248,220,90,0.92)');
+                        clG.addColorStop(0.55, 'rgba(218,175,58,0.78)');
+                        clG.addColorStop(1,    'rgba(178,132,34,0.62)');
+                        ctx.beginPath(); ctx.arc(clx, cly, clR, 0, Math.PI*2);
+                        ctx.fillStyle = clG; ctx.fill();
+                        ctx.strokeStyle = 'rgba(240,200,90,0.82)'; ctx.lineWidth = 0.9; ctx.stroke();
+                        ctx.beginPath(); ctx.arc(clx - 1.5*flip, cly - 1.8, 1.5, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(255,250,215,0.52)'; ctx.fill();
+                        // Label once fully formed
+                        if (clT > 0.55) {
+                            ctx.font = '5px Segoe UI, system-ui';
+                            ctx.textAlign = 'center';
+                            ctx.fillStyle = `rgba(255,240,165,${clT * 0.84})`;
+                            ctx.fillText('C. Luteum', clx, cly - clR - 4);
+                        }
+                        ctx.restore();
+                    }
+
+                } else {
+                    // ── INACTIVE OVARY: resting — small primaries, no dominance ──
+                    const pf1x = ox - 8*flip, pf1y = oy + 3;
+                    ctx.beginPath(); ctx.arc(pf1x, pf1y, 4.5, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(238,158,188,0.55)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(248,178,205,0.62)'; ctx.lineWidth = 0.9; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(pf1x, pf1y, 2.0, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(252,212,228,0.72)'; ctx.fill();
+                    ctx.beginPath(); ctx.arc(ox + 5*flip, oy + 5, 3, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(225,145,175,0.42)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(240,168,195,0.50)'; ctx.lineWidth = 0.7; ctx.stroke();
+                }
+
+                // ── Ovary specular highlight ───────────────────────────────────
                 ctx.beginPath(); ctx.ellipse(ox - 9*flip, oy - 8, 8, 4, -0.3, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(255, 200, 218, 0.32)'; ctx.fill();
+                ctx.fillStyle = 'rgba(255, 200, 218, 0.30)'; ctx.fill();
                 ctx.restore();
             }
-            drawOvary(fx - 100, fy + 46,  1);   // left  (flip=+1 → left-facing)
-            drawOvary(fx + 100, fy + 46, -1);   // right (flip=−1 → right-facing)
+
+            // Compute current cycle state for ovary (mirrors _drawOvulationCycle)
+            {
+                const _oNow  = performance.now();
+                let _oCF = 0;
+                if (_ovStartTime > 0) {
+                    const _oRaw = (_oNow - _ovStartTime) / OV_CYCLE_MS;
+                    _oCF = _oRaw - Math.floor(_oRaw);
+                }
+                const _actSide = (_ovCycleCount % 2 === 0) ? 'L' : 'R';
+                drawOvary(fx - 100, fy + 46,  1, _oCF, _actSide === 'L', _oNow);
+                drawOvary(fx + 100, fy + 46, -1, _oCF, _actSide === 'R', _oNow);
+            }
 
             ctx.restore(); // end globalAlpha=0.92
 
