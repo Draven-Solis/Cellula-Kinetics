@@ -1276,6 +1276,8 @@
         let _ovStartTime    = 0;       // timestamp when anatomy stage began
         let _ovCycleCount   = 0;       // how many full cycles completed
         let _ovum           = null;    // active ovum object, or null
+        let _ovulationOccurred     = false;  // only one ovum per cycle
+        let _fertilizationSuccessful = false; // locks out new ovulation after fertilization
 
         // ── Menstruation blood droplet state ──────────────────────────────────
         // Days 1–5 of each cycle (cycleFrac 0 → 5/30)
@@ -2252,6 +2254,10 @@
                 _ovCycleCount = cycleIdx;
                 // Kill any leftover ovum from prior cycle
                 _ovum = null;
+                // Only reset ovulation flag if fertilization hasn't locked the cycle
+                if (!_fertilizationSuccessful) {
+                    _ovulationOccurred = false;
+                }
             }
 
             // ── Anatomy key-points (must match drawing coords above) ─────────
@@ -2303,8 +2309,8 @@
                 }
             }
 
-            // ── Spawn ovum at Day 14 ──────────────────────────────────────────
-            if (!_ovum && cycleFrac >= OV_DAY14_FRAC) {
+            // ── Spawn ovum at Day 14 (once per cycle, never after fertilization) ─
+            if (!_ovum && !_ovulationOccurred && !_fertilizationSuccessful && cycleFrac >= OV_DAY14_FRAC) {
                 const side = (_ovCycleCount % 2 === 0) ? 'L' : 'R';
                 _ovum = {
                     side,
@@ -2315,6 +2321,7 @@
                     alpha: 1,
                     trail: [],
                 };
+                _ovulationOccurred = true;  // exactly one ovum per cycle
             }
 
             // ── Advance ovum ──────────────────────────────────────────────────
@@ -2948,8 +2955,8 @@
             // ════════════════════════════════════════════════════════════════
             const isMensesActive = cycleFrac < MENSES_END_FRAC;
 
-            // Spawn new droplets during menses
-            if (isMensesActive && !_fertilizationMode && now - _lastDropSpawn > 280) {
+            // Spawn new droplets during menses (never after fertilization)
+            if (isMensesActive && !_fertilizationMode && !_fertilizationSuccessful && now - _lastDropSpawn > 280) {
                 _lastDropSpawn = now;
                 // Intensity increases days 1–3, decreases days 4–5
                 const dayNow  = cycleFrac * 30;
@@ -3164,6 +3171,9 @@
                 if (_fertState.bubbleStep >= 4) {
                     _fertState.phase = 'zygote';
                     _fertState.zygoStart = now;
+                    // Lock out any further ovulation or menstrual resets
+                    _fertilizationSuccessful = true;
+                    _ovulationOccurred = true;
                     return;
                 }
                 const bStep = _fertState.bubbleStep;
