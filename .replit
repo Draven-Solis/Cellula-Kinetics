@@ -33,7 +33,7 @@ args = "PORT=21937 BASE_PATH=/ pnpm --filter @workspace/meiosis run dev"
 waitForPort = 21937
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 
 [postMerge]
