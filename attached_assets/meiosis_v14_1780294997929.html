@@ -1335,43 +1335,60 @@
             ctx.strokeStyle = 'rgba(55,140,175,0.35)'; ctx.lineWidth = 1.2; ctx.stroke();
             ctx.restore();
 
-            // ── Testes — filled anatomical ovals ──
-            // Left testis
-            ctx.save();
-            const testLGrad = ctx.createRadialGradient(mx - 35, my + 122, 2, mx - 28, my + 130, 20);
-            testLGrad.addColorStop(0, 'rgba(80,188,222,0.90)');
-            testLGrad.addColorStop(0.55, 'rgba(52,152,195,0.85)');
-            testLGrad.addColorStop(1, 'rgba(28,102,148,0.80)');
-            ctx.beginPath(); ctx.ellipse(mx - 28, my + 130, 18, 26, 0, 0, Math.PI*2);
-            ctx.fillStyle = testLGrad; ctx.fill();
-            ctx.strokeStyle = 'rgba(118,222,248,0.92)'; ctx.lineWidth = 2.2; ctx.stroke();
-            // Inner tubule texture
-            ctx.strokeStyle = 'rgba(160,235,252,0.18)'; ctx.lineWidth = 1;
-            for (let ti = 0; ti < 4; ti++) {
-                const ty = my + 115 + ti * 10;
-                ctx.beginPath(); ctx.ellipse(mx - 28, ty, 12, 4, 0, 0, Math.PI*2); ctx.stroke();
+            // ── Testes — 3D filled ovals with detailed seminiferous tubule coils ──
+            function drawTestis(tx, ty) {
+                ctx.save();
+                // Outer 3D sphere gradient
+                const tG = ctx.createRadialGradient(tx - 7, ty - 10, 2, tx + 4, ty + 6, 28);
+                tG.addColorStop(0,    'rgba(108, 205, 238, 0.92)');
+                tG.addColorStop(0.38, 'rgba(58,  158, 202, 0.88)');
+                tG.addColorStop(0.72, 'rgba(30,  108, 158, 0.84)');
+                tG.addColorStop(1,    'rgba(12,  68,  118, 0.80)');
+                ctx.beginPath(); ctx.ellipse(tx, ty, 20, 28, 0, 0, Math.PI*2);
+                ctx.fillStyle = tG; ctx.fill();
+                ctx.strokeStyle = 'rgba(128, 228, 255, 0.94)'; ctx.lineWidth = 2.2; ctx.stroke();
+
+                // ── Seminiferous tubule cross-sections — coiled tube pattern ──
+                // Clip to testis interior
+                ctx.save();
+                ctx.beginPath(); ctx.ellipse(tx, ty, 17, 25, 0, 0, Math.PI*2); ctx.clip();
+                // Draw 8 coiled tubule loops at varying positions/radii/angles
+                const tubCoils = [
+                    [tx - 5, ty - 12, 6, 3,  0.1],
+                    [tx + 5, ty - 14, 5, 2.5, 0.3],
+                    [tx - 7, ty - 2,  7, 3.2, -0.15],
+                    [tx + 4, ty - 3,  5, 2.8,  0.2],
+                    [tx - 4, ty + 8,  6, 2.8, -0.1],
+                    [tx + 6, ty + 8,  5, 2.5,  0.25],
+                    [tx - 5, ty + 18, 6, 2.5,  0.05],
+                    [tx + 4, ty + 18, 5, 2.2,  0.2],
+                ];
+                tubCoils.forEach(([cx2, cy2, rx2, ry2, rot]) => {
+                    // Tube outer wall
+                    ctx.save(); ctx.translate(cx2, cy2); ctx.rotate(rot);
+                    ctx.beginPath(); ctx.ellipse(0, 0, rx2, ry2, 0, 0, Math.PI*2);
+                    ctx.strokeStyle = 'rgba(165, 238, 255, 0.40)'; ctx.lineWidth = 1.8; ctx.stroke();
+                    // Lumen (hollow centre of each tubule)
+                    ctx.beginPath(); ctx.ellipse(0, 0, rx2*0.45, ry2*0.45, 0, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(12, 55, 95, 0.55)'; ctx.fill();
+                    // Spermatogonia along tubule wall — tiny bright dots
+                    for (let sp = 0; sp < 8; sp++) {
+                        const sa = (sp / 8) * Math.PI * 2;
+                        const spx = Math.cos(sa) * rx2 * 0.78, spy = Math.sin(sa) * ry2 * 0.78;
+                        ctx.beginPath(); ctx.arc(spx, spy, 0.85, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(210, 248, 255, 0.72)'; ctx.fill();
+                    }
+                    ctx.restore();
+                });
+                ctx.restore();
+
+                // Specular highlight upper-left
+                ctx.beginPath(); ctx.ellipse(tx - 9, ty - 16, 7, 4.5, -0.4, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(212, 250, 255, 0.36)'; ctx.fill();
+                ctx.restore();
             }
-            // Specular highlight
-            ctx.beginPath(); ctx.ellipse(mx - 33, my + 121, 6, 4, -0.4, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(200,245,255,0.32)'; ctx.fill();
-            ctx.restore();
-            // Right testis
-            ctx.save();
-            const testRGrad = ctx.createRadialGradient(mx + 21, my + 122, 2, mx + 28, my + 130, 20);
-            testRGrad.addColorStop(0, 'rgba(80,188,222,0.90)');
-            testRGrad.addColorStop(0.55, 'rgba(52,152,195,0.85)');
-            testRGrad.addColorStop(1, 'rgba(28,102,148,0.80)');
-            ctx.beginPath(); ctx.ellipse(mx + 28, my + 130, 18, 26, 0, 0, Math.PI*2);
-            ctx.fillStyle = testRGrad; ctx.fill();
-            ctx.strokeStyle = 'rgba(118,222,248,0.92)'; ctx.lineWidth = 2.2; ctx.stroke();
-            ctx.strokeStyle = 'rgba(160,235,252,0.18)'; ctx.lineWidth = 1;
-            for (let ti = 0; ti < 4; ti++) {
-                const ty = my + 115 + ti * 10;
-                ctx.beginPath(); ctx.ellipse(mx + 28, ty, 12, 4, 0, 0, Math.PI*2); ctx.stroke();
-            }
-            ctx.beginPath(); ctx.ellipse(mx + 23, my + 121, 6, 4, -0.4, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(200,245,255,0.32)'; ctx.fill();
-            ctx.restore();
+            drawTestis(mx - 28, my + 130);
+            drawTestis(mx + 28, my + 130);
 
             // ── Epididymis — coiled arc along inner edge of each testis ──
             ctx.save();
@@ -1628,46 +1645,77 @@
             ctx.fillStyle = 'rgba(248,185,210,0.22)'; ctx.fill();
             ctx.restore();
 
-            // ── Ovaries — filled anatomical ovals ──
-            // Left ovary
-            ctx.save();
-            const ovLGrad = ctx.createRadialGradient(fx - 107, fy + 39, 3, fx - 100, fy + 46, 22);
-            ovLGrad.addColorStop(0, 'rgba(215,120,150,0.90)');
-            ovLGrad.addColorStop(0.5, 'rgba(188,98,130,0.86)');
-            ovLGrad.addColorStop(1, 'rgba(152,72,105,0.82)');
-            ctx.beginPath(); ctx.ellipse(fx - 100, fy + 46, 22, 15, 0, 0, Math.PI*2);
-            ctx.fillStyle = ovLGrad; ctx.fill();
-            ctx.strokeStyle = 'rgba(230,138,168,0.92)'; ctx.lineWidth = 2.2; ctx.stroke();
-            // Follicle bumps on surface
-            for (let fi = 0; fi < 3; fi++) {
-                const fa = -0.7 + fi * 0.7;
-                const fx2 = fx - 100 + Math.cos(fa) * 16, fy2 = fy + 46 + Math.sin(fa) * 10;
-                ctx.beginPath(); ctx.arc(fx2, fy2, 3.5, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(240,168,192,0.65)'; ctx.fill();
-                ctx.strokeStyle = 'rgba(245,185,208,0.70)'; ctx.lineWidth = 0.8; ctx.stroke();
+            // ── Ovaries — 3D ovals with multi-stage follicle detail ──────────
+            function drawOvary(ox, oy, flip) {
+                ctx.save();
+                // Outer 3D gradient body
+                const oG = ctx.createRadialGradient(ox - 8*flip, oy - 6, 3, ox + 5*flip, oy + 5, 26);
+                oG.addColorStop(0,    'rgba(225, 128, 158, 0.92)');
+                oG.addColorStop(0.40, 'rgba(192, 100, 132, 0.88)');
+                oG.addColorStop(0.72, 'rgba(155, 72,  108, 0.84)');
+                oG.addColorStop(1,    'rgba(108, 45,  78,  0.80)');
+                ctx.beginPath(); ctx.ellipse(ox, oy, 24, 16, 0, 0, Math.PI*2);
+                ctx.fillStyle = oG; ctx.fill();
+                ctx.strokeStyle = 'rgba(235, 142, 172, 0.94)'; ctx.lineWidth = 2.2; ctx.stroke();
+
+                // ── Primordial follicles — tiny dots on cortex surface ─────────
+                for (let pi = 0; pi < 8; pi++) {
+                    const pa = (pi / 8) * Math.PI * 2;
+                    const px2 = ox + Math.cos(pa) * 19, py2 = oy + Math.sin(pa) * 12;
+                    ctx.beginPath(); ctx.arc(px2, py2, 1.4, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(252, 192, 215, 0.65)'; ctx.fill();
+                }
+
+                // ── Primary follicle — small round follicle inside ─────────────
+                const pf1x = ox - 8*flip, pf1y = oy + 3;
+                ctx.beginPath(); ctx.arc(pf1x, pf1y, 4.5, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(238, 158, 188, 0.62)'; ctx.fill();
+                ctx.strokeStyle = 'rgba(248, 178, 205, 0.75)'; ctx.lineWidth = 0.9; ctx.stroke();
+                // Oocyte nucleus inside
+                ctx.beginPath(); ctx.arc(pf1x, pf1y, 2.0, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(252, 212, 228, 0.80)'; ctx.fill();
+
+                // ── Graafian (mature) follicle — large visible bulge ───────────
+                const gfx = ox + 7*flip, gfy = oy - 2;
+                // Antrum (fluid-filled cavity) — teal-tinted sphere
+                const gG = ctx.createRadialGradient(gfx - 3*flip, gfy - 3, 1, gfx, gfy, 9);
+                gG.addColorStop(0,    'rgba(245, 195, 215, 0.88)');
+                gG.addColorStop(0.50, 'rgba(215, 148, 175, 0.82)');
+                gG.addColorStop(1,    'rgba(175, 100, 135, 0.76)');
+                ctx.beginPath(); ctx.arc(gfx, gfy, 9, 0, Math.PI*2);
+                ctx.fillStyle = gG; ctx.fill();
+                ctx.strokeStyle = 'rgba(245, 175, 200, 0.90)'; ctx.lineWidth = 1.2; ctx.stroke();
+                // Antrum fluid region inside
+                ctx.beginPath(); ctx.arc(gfx, gfy, 6, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(238, 215, 228, 0.42)'; ctx.fill();
+                // Cumulus oophorus — oocyte cluster at one side
+                ctx.beginPath(); ctx.arc(gfx + 3*flip, gfy, 3.2, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(252, 225, 238, 0.75)'; ctx.fill();
+                // Specular on Graafian
+                ctx.beginPath(); ctx.arc(gfx - 3.5*flip, gfy - 3.5, 2.2, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255, 250, 255, 0.42)'; ctx.fill();
+
+                // ── Corpus luteum — ruptured yellow follicle ───────────────────
+                // Appears after ovulation; shown as yellowish mass at edge
+                const clx = ox + 12*flip*(-1), cly = oy + 7;
+                const clG = ctx.createRadialGradient(clx - 2*flip, cly - 2, 0.5, clx, cly, 6);
+                clG.addColorStop(0,    'rgba(245, 210, 88,  0.78)');
+                clG.addColorStop(0.55, 'rgba(215, 168, 55,  0.70)');
+                clG.addColorStop(1,    'rgba(175, 125, 32,  0.62)');
+                ctx.beginPath(); ctx.arc(clx, cly, 5.5, 0, Math.PI*2);
+                ctx.fillStyle = clG; ctx.fill();
+                ctx.strokeStyle = 'rgba(238, 198, 88, 0.72)'; ctx.lineWidth = 0.9; ctx.stroke();
+                // Specular glint on corpus luteum
+                ctx.beginPath(); ctx.arc(clx - 1.5*flip, cly - 1.8, 1.5, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255, 248, 210, 0.45)'; ctx.fill();
+
+                // Ovary specular highlight
+                ctx.beginPath(); ctx.ellipse(ox - 9*flip, oy - 8, 8, 4, -0.3, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255, 200, 218, 0.32)'; ctx.fill();
+                ctx.restore();
             }
-            ctx.beginPath(); ctx.ellipse(fx - 106, fy + 40, 8, 4, -0.4, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(248,190,210,0.28)'; ctx.fill();
-            ctx.restore();
-            // Right ovary
-            ctx.save();
-            const ovRGrad = ctx.createRadialGradient(fx + 93, fy + 39, 3, fx + 100, fy + 46, 22);
-            ovRGrad.addColorStop(0, 'rgba(215,120,150,0.90)');
-            ovRGrad.addColorStop(0.5, 'rgba(188,98,130,0.86)');
-            ovRGrad.addColorStop(1, 'rgba(152,72,105,0.82)');
-            ctx.beginPath(); ctx.ellipse(fx + 100, fy + 46, 22, 15, 0, 0, Math.PI*2);
-            ctx.fillStyle = ovRGrad; ctx.fill();
-            ctx.strokeStyle = 'rgba(230,138,168,0.92)'; ctx.lineWidth = 2.2; ctx.stroke();
-            for (let fi = 0; fi < 3; fi++) {
-                const fa = -0.7 + fi * 0.7;
-                const fx2 = fx + 100 + Math.cos(fa) * 16, fy2 = fy + 46 + Math.sin(fa) * 10;
-                ctx.beginPath(); ctx.arc(fx2, fy2, 3.5, 0, Math.PI*2);
-                ctx.fillStyle = 'rgba(240,168,192,0.65)'; ctx.fill();
-                ctx.strokeStyle = 'rgba(245,185,208,0.70)'; ctx.lineWidth = 0.8; ctx.stroke();
-            }
-            ctx.beginPath(); ctx.ellipse(fx + 94, fy + 40, 8, 4, -0.4, 0, Math.PI*2);
-            ctx.fillStyle = 'rgba(248,190,210,0.28)'; ctx.fill();
-            ctx.restore();
+            drawOvary(fx - 100, fy + 46,  1);   // left  (flip=+1 → left-facing)
+            drawOvary(fx + 100, fy + 46, -1);   // right (flip=−1 → right-facing)
 
             ctx.restore(); // end globalAlpha=0.92
 
@@ -3842,8 +3890,91 @@
             drawNuclearPores(x, y, r, 0.65);
         }
 
-        function drawRadialMicrotubules(x, y, length) { if (length <= 0) return; ctx.save(); ctx.setLineDash([2,3]); ctx.lineWidth = 1.5; ctx.strokeStyle = "#88ccff"; for (let i = 0; i < 16; i++) { const angle = (i * Math.PI * 2 / 16); const dx = Math.cos(angle) * length, dy = Math.sin(angle) * length; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx, y + dy); ctx.stroke(); } ctx.restore(); }
-        function drawSpindlePole(x, y) { ctx.save(); ctx.fillStyle = "#FFDD88"; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = "#FFAA44"; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = "#88ccff"; ctx.lineWidth = 1.8; for (let i = 0; i < 12; i++) { let angle = (i * Math.PI * 2 / 12); let dx = Math.cos(angle) * 15, dy = Math.sin(angle) * 15; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx, y + dy); ctx.stroke(); } ctx.restore(); }
+        function drawRadialMicrotubules(x, y, length) {
+            if (length <= 0) return;
+            ctx.save();
+            const N = 18;
+            ctx.setLineDash([]);
+            for (let i = 0; i < N; i++) {
+                const angle = (i / N) * Math.PI * 2;
+                const dx = Math.cos(angle), dy = Math.sin(angle);
+                const grd = ctx.createLinearGradient(x, y, x + dx * length, y + dy * length);
+                grd.addColorStop(0,    'rgba(210, 245, 255, 0.95)');
+                grd.addColorStop(0.18, 'rgba(145, 215, 255, 0.80)');
+                grd.addColorStop(0.55, 'rgba(88,  178, 250, 0.45)');
+                grd.addColorStop(1,    'rgba(55,  130, 218, 0.0)');
+                ctx.shadowBlur  = 6;
+                ctx.shadowColor = 'rgba(120, 205, 255, 0.52)';
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + dx * length, y + dy * length);
+                ctx.strokeStyle = grd;
+                ctx.lineWidth = 1.7; ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        function drawSpindlePole(x, y) {
+            ctx.save();
+
+            // ── PCM glow halo ──────────────────────────────────────────────────
+            ctx.shadowBlur  = 20;
+            ctx.shadowColor = 'rgba(255, 225, 78, 0.80)';
+            const pcmG = ctx.createRadialGradient(x, y, 1, x, y, 13);
+            pcmG.addColorStop(0,    'rgba(255, 218, 78,  0.82)');
+            pcmG.addColorStop(0.40, 'rgba(245, 185, 48,  0.40)');
+            pcmG.addColorStop(0.74, 'rgba(215, 148, 28,  0.16)');
+            pcmG.addColorStop(1,    'rgba(180, 115, 15,  0)');
+            ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI*2);
+            ctx.fillStyle = pcmG; ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // ── γ-TuRC puncta ──────────────────────────────────────────────────
+            [0.4, 1.3, 2.2, 3.1, 4.0, 5.0].forEach(a => {
+                const pr = 6.2 + Math.sin(a * 2.1) * 2.2;
+                ctx.beginPath(); ctx.arc(x + Math.cos(a) * pr, y + Math.sin(a) * pr, 0.92, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255, 248, 162, 0.82)'; ctx.fill();
+            });
+
+            // ── Centriole A — side view (vertical barrel) ──────────────────────
+            ctx.save(); ctx.translate(x - 3.6, y);
+            const caG = ctx.createLinearGradient(-2.5, -4.4, 2.5, 4.4);
+            caG.addColorStop(0,    'rgba(255, 238, 148, 0.96)');
+            caG.addColorStop(0.35, 'rgba(225, 200, 88,  0.92)');
+            caG.addColorStop(0.72, 'rgba(180, 152, 48,  0.88)');
+            caG.addColorStop(1,    'rgba(128, 102, 22,  0.84)');
+            ctx.beginPath(); ctx.ellipse(0, 0, 2.6, 4.6, 0, 0, Math.PI*2);
+            ctx.fillStyle = caG; ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 242, 160, 0.82)'; ctx.lineWidth = 0.9; ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 218, 98, 0.55)'; ctx.lineWidth = 0.65;
+            [-2.0, 0, 2.0].forEach(yy => {
+                ctx.beginPath(); ctx.moveTo(-2.1, yy); ctx.lineTo(2.1, yy); ctx.stroke();
+            });
+            ctx.beginPath(); ctx.ellipse(-0.9, -1.8, 0.95, 0.48, -0.2, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 255, 228, 0.54)'; ctx.fill();
+            ctx.restore();
+
+            // ── Centriole B — end-on (9-triplet ring) ─────────────────────────
+            ctx.save(); ctx.translate(x + 3.6, y);
+            const cbG = ctx.createRadialGradient(-1.1, -1.1, 0.3, 0, 0, 4.0);
+            cbG.addColorStop(0,    'rgba(248, 228, 125, 0.88)');
+            cbG.addColorStop(0.52, 'rgba(202, 172, 68,  0.84)');
+            cbG.addColorStop(1,    'rgba(140, 108, 26,  0.80)');
+            ctx.beginPath(); ctx.arc(0, 0, 4.0, 0, Math.PI*2);
+            ctx.fillStyle = cbG; ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 238, 148, 0.76)'; ctx.lineWidth = 0.9; ctx.stroke();
+            for (let i = 0; i < 9; i++) {
+                const a = (i / 9) * Math.PI * 2 - Math.PI * 0.5;
+                ctx.beginPath(); ctx.arc(Math.cos(a) * 2.4, Math.sin(a) * 2.4, 0.65, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(255, 252, 202, 0.86)'; ctx.fill();
+            }
+            ctx.beginPath(); ctx.arc(-1.4, -1.4, 1.1, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 255, 242, 0.38)'; ctx.fill();
+            ctx.restore();
+
+            ctx.restore();
+        }
 
         function drawSynaptonemalLadder() { if (currentStage !==2) return; const l1 = chromatids.find(c => c.id === 'L1a'); const s1 = chromatids.find(c => c.id === 'S1a'); if (!l1 || !s1) return; ctx.save(); ctx.strokeStyle = "#AAAAAA"; ctx.lineWidth = 1.8; ctx.setLineDash([]); const longLength = 56, longHalf = longLength/2; const leftLongX = l1.x, rightLongX = chromatids.find(c => c.id === 'L2a')?.x || l1.x + 120; const longY = l1.y; for (let i = 1; i <= 9; i++) { let t = i / 10; let yPos = longY - longHalf + t * longLength; ctx.beginPath(); ctx.moveTo(leftLongX - 5, yPos); ctx.lineTo(rightLongX + 5, yPos); ctx.stroke(); } const shortLength = 38, shortHalf = shortLength/2; const leftShortX = s1.x, rightShortX = chromatids.find(c => c.id === 'S2a')?.x || s1.x + 100; const shortY = s1.y; for (let i = 1; i <= 7; i++) { let t = i / 8; let yPos = shortY - shortHalf + t * shortLength; ctx.beginPath(); ctx.moveTo(leftShortX - 5, yPos); ctx.lineTo(rightShortX + 5, yPos); ctx.stroke(); } ctx.restore(); }
 
@@ -3919,63 +4050,76 @@
 
         }
 
+        // Helper: draw one kinetochore microtubule fiber (gradient glow, plus bright attachment dot)
+        function _drawKMTFiber(x1, y1, x2, y2) {
+            // Gradient: bright cyan at chromosome end → dim blue at pole
+            const grd = ctx.createLinearGradient(x1, y1, x2, y2);
+            grd.addColorStop(0,    'rgba(200, 245, 255, 0.92)');
+            grd.addColorStop(0.25, 'rgba(130, 215, 255, 0.72)');
+            grd.addColorStop(0.65, 'rgba(78,  175, 248, 0.42)');
+            grd.addColorStop(1,    'rgba(50,  128, 215, 0.12)');
+            ctx.shadowBlur  = 5;
+            ctx.shadowColor = 'rgba(100, 200, 255, 0.48)';
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = grd; ctx.lineWidth = 1.75; ctx.stroke();
+            ctx.shadowBlur = 0;
+            // Kinetochore attachment point — bright disc at chromosome end
+            ctx.beginPath(); ctx.arc(x1, y1, 2.2, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(210, 248, 255, 0.82)'; ctx.fill();
+        }
+
         function drawSpindleFibers() {
-            if (currentStage ===5 || currentStage ===6) {
-                ctx.save(); ctx.setLineDash([4,5]); ctx.lineWidth = 1.8; ctx.strokeStyle = "#88ccff";
+            if (currentStage === 5 || currentStage === 6) {
+                ctx.save(); ctx.setLineDash([]);
                 chromatids.forEach(chr => {
-                    let poleX = (chr.x < 450) ? 300 : 600;
-                    ctx.beginPath(); ctx.moveTo(chr.x, chr.y); ctx.lineTo(poleX, 260); ctx.stroke();
+                    const poleX = (chr.x < 450) ? 300 : 600;
+                    _drawKMTFiber(chr.x, chr.y, poleX, 260);
                 });
                 ctx.restore();
                 return;
             }
-            if (currentStage ===4) {
+            if (currentStage === 4) {
                 const elapsed = performance.now() - metaphaseIAttachStartTime;
                 const radialCompleteTime = CENTRIOLE_ONLY_DURATION + RADIAL_GROWTH_DURATION;
                 if (elapsed >= radialCompleteTime) {
-                    ctx.save(); ctx.setLineDash([4,5]); ctx.lineWidth = 1.8; ctx.strokeStyle = "#88ccff";
+                    ctx.save(); ctx.setLineDash([]);
                     chromatids.forEach(chr => {
-                        let poleX = (chr.x < 450) ? 300 : 600;
-                        ctx.beginPath(); ctx.moveTo(chr.x, chr.y); ctx.lineTo(poleX, 260); ctx.stroke();
+                        const poleX = (chr.x < 450) ? 300 : 600;
+                        _drawKMTFiber(chr.x, chr.y, poleX, 260);
                     });
                     ctx.restore();
                 }
                 return;
             }
-            if (currentStage ===10) {
+            if (currentStage === 10) {
                 if (metaphaseIIAttachStartTime === 0) return;
                 const elapsed = performance.now() - metaphaseIIAttachStartTime;
                 const radialCompleteTime = CENTRIOLE_ONLY_DURATION + RADIAL_GROWTH_DURATION;
                 if (elapsed >= radialCompleteTime) {
-                    const topCell = { cx: 450, cy: 150, rx: 130, ry: 95 };
+                    const topCell    = { cx: 450, cy: 150, rx: 130, ry: 95 };
                     const bottomCell = { cx: 450, cy: 370, rx: 130, ry: 95 };
-                    const topChroms = chromatids.filter(c => c.cellGroup === 'top');
+                    const topChroms    = chromatids.filter(c => c.cellGroup === 'top');
                     const bottomChroms = chromatids.filter(c => c.cellGroup === 'bottom');
                     function drawFibersForCell(cell, chromosomes) {
                         ctx.save();
                         ctx.beginPath();
                         ctx.ellipse(cell.cx, cell.cy, cell.rx, cell.ry, 0, 0, Math.PI*2);
                         ctx.clip();
-                        const poleOffset = cell.ry - 18;
-                        const topY = cell.cy - poleOffset;
-                        const bottomY = cell.cy + poleOffset;
-                        const topPole = { x: cell.cx, y: topY };
-                        const bottomPole = { x: cell.cx, y: bottomY };
-                        ctx.setLineDash([4,5]);
-                        ctx.lineWidth = 1.8;
-                        ctx.strokeStyle = "#88ccff";
-                        for (let chr of chromosomes) {
-                            ctx.beginPath(); ctx.moveTo(chr.x, chr.y); ctx.lineTo(topPole.x, topPole.y); ctx.stroke();
-                            ctx.beginPath(); ctx.moveTo(chr.x, chr.y); ctx.lineTo(bottomPole.x, bottomPole.y); ctx.stroke();
+                        ctx.setLineDash([]);
+                        const pOff = cell.ry - 18;
+                        const topPole    = { x: cell.cx, y: cell.cy - pOff };
+                        const bottomPole = { x: cell.cx, y: cell.cy + pOff };
+                        for (const chr of chromosomes) {
+                            _drawKMTFiber(chr.x, chr.y, topPole.x, topPole.y);
+                            _drawKMTFiber(chr.x, chr.y, bottomPole.x, bottomPole.y);
                         }
                         ctx.restore();
                     }
-                    drawFibersForCell(topCell, topChroms);
+                    drawFibersForCell(topCell,    topChroms);
                     drawFibersForCell(bottomCell, bottomChroms);
                 }
                 return;
             }
-
         }
 
         // Drawing functions (cells, nuclei, chromatid stage, updateTargetPositions, startCrossingOver)
