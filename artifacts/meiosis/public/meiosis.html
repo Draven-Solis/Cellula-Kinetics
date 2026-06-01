@@ -1454,9 +1454,10 @@
             ctx.stroke();
             ctx.restore();
 
-            // ── Urethra — filled tube down the centre ──
+            // ── Urethra — filled tube through shaft only, ends at glans tip ──
+            // Shaft bottom = my+48, glans tip = my+70
             ctx.save();
-            const urethraGrad = ctx.createLinearGradient(mx-6, my-96, mx+6, my+130);
+            const urethraGrad = ctx.createLinearGradient(mx-6, my-96, mx+6, my+70);
             urethraGrad.addColorStop(0, 'rgba(50,140,175,0.75)');
             urethraGrad.addColorStop(0.5, 'rgba(65,160,195,0.65)');
             urethraGrad.addColorStop(1, 'rgba(40,120,155,0.70)');
@@ -1464,14 +1465,14 @@
             ctx.beginPath();
             ctx.moveTo(mx, my - 96);
             ctx.bezierCurveTo(mx, my - 60, mx, my - 10, mx, my + 10);
-            ctx.bezierCurveTo(mx, my + 30, mx, my + 80, mx, my + 130);
+            ctx.bezierCurveTo(mx, my + 28, mx, my + 52, mx, my + 70);
             ctx.stroke();
             // Urethra highlight
             ctx.strokeStyle = 'rgba(160,235,252,0.30)'; ctx.lineWidth = 2.5;
             ctx.beginPath();
             ctx.moveTo(mx - 1.5, my - 96);
             ctx.bezierCurveTo(mx - 1.5, my - 60, mx - 1.5, my - 10, mx - 1.5, my + 10);
-            ctx.bezierCurveTo(mx - 1.5, my + 30, mx - 1.5, my + 80, mx - 1.5, my + 130);
+            ctx.bezierCurveTo(mx - 1.5, my + 28, mx - 1.5, my + 52, mx - 1.5, my + 70);
             ctx.stroke();
             ctx.restore();
 
@@ -1525,28 +1526,41 @@
             ctx.fillStyle = 'rgba(200,245,255,0.28)'; ctx.fill();
             ctx.restore();
 
-            // ── Penis shaft — filled rounded rectangle ──
+            // ── Penis shaft — shorter, flat bottom (glans caps it) ──
+            // Shaft: my+10 → my+48 (38px tall).  Top corners rounded, bottom corners square.
             ctx.save();
-            const penisGrad = ctx.createLinearGradient(mx - 13, my + 10, mx + 13, my + 62);
+            const penisGrad = ctx.createLinearGradient(mx - 13, my + 10, mx + 13, my + 48);
             penisGrad.addColorStop(0, 'rgba(70,168,205,0.82)');
             penisGrad.addColorStop(0.5, 'rgba(55,148,188,0.78)');
             penisGrad.addColorStop(1, 'rgba(42,120,162,0.76)');
-            ctx.beginPath(); ctx.roundRect(mx - 13, my + 10, 26, 52, 13);
+            ctx.beginPath(); ctx.roundRect(mx - 13, my + 10, 26, 38, [13, 13, 0, 0]);
             ctx.fillStyle = penisGrad; ctx.fill();
             ctx.strokeStyle = 'rgba(110,212,238,0.88)'; ctx.lineWidth = 2; ctx.stroke();
             // Highlight stripe
-            ctx.beginPath(); ctx.roundRect(mx - 10, my + 14, 8, 42, 6);
+            ctx.beginPath(); ctx.roundRect(mx - 10, my + 14, 8, 28, 5);
             ctx.fillStyle = 'rgba(165,235,252,0.18)'; ctx.fill();
             ctx.restore();
 
-            // ── Glans ──
+            // ── Glans — rounded-conical, pointing downward ──
+            // Top edge at my+48 (shaft bottom); tip at my+70
             ctx.save();
-            const glansGrad = ctx.createRadialGradient(mx - 4, my + 68, 1, mx, my + 72, 15);
-            glansGrad.addColorStop(0, 'rgba(80,180,215,0.85)');
-            glansGrad.addColorStop(1, 'rgba(42,115,155,0.80)');
-            ctx.beginPath(); ctx.ellipse(mx, my + 72, 15, 12, 0, 0, Math.PI*2);
+            const glansGrad = ctx.createLinearGradient(mx, my + 48, mx, my + 70);
+            glansGrad.addColorStop(0, 'rgba(80,180,215,0.88)');
+            glansGrad.addColorStop(1, 'rgba(42,115,155,0.82)');
+            ctx.beginPath();
+            ctx.moveTo(mx - 13, my + 48);                                              // top-left
+            ctx.bezierCurveTo(mx - 16, my + 55, mx - 4, my + 70, mx, my + 70);       // left side → tip
+            ctx.bezierCurveTo(mx +  4, my + 70, mx + 16, my + 55, mx + 13, my + 48); // tip → right side
+            ctx.closePath();
             ctx.fillStyle = glansGrad; ctx.fill();
             ctx.strokeStyle = 'rgba(115,218,242,0.90)'; ctx.lineWidth = 2; ctx.stroke();
+            // Specular
+            ctx.beginPath();
+            ctx.moveTo(mx - 8, my + 50);
+            ctx.bezierCurveTo(mx - 10, my + 54, mx - 4, my + 61, mx - 1, my + 61);
+            ctx.bezierCurveTo(mx - 1, my + 58, mx - 5, my + 53, mx - 6, my + 50);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(185,242,255,0.22)'; ctx.fill();
             ctx.restore();
 
             // ── Scrotum — large filled oval (behind testes) ──
@@ -1576,9 +1590,9 @@
                 ctx.strokeStyle = 'rgba(128, 228, 255, 0.94)'; ctx.lineWidth = 2.2; ctx.stroke();
 
                 // ── Seminiferous tubule cross-sections — coiled tube pattern ──
-                // Clip to testis interior
+                // Clip tightly inside testis (1.5 px inset) so stroke never bleeds outside
                 ctx.save();
-                ctx.beginPath(); ctx.ellipse(tx, ty, 17, 25, 0, 0, Math.PI*2); ctx.clip();
+                ctx.beginPath(); ctx.ellipse(tx, ty, 18, 26, 0, 0, Math.PI*2); ctx.clip();
                 // Draw 8 coiled tubule loops at varying positions/radii/angles
                 const tubCoils = [
                     [tx - 5, ty - 12, 6, 3,  0.1],
