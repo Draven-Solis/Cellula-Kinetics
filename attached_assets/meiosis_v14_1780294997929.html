@@ -3978,6 +3978,109 @@
 
         function drawSynaptonemalLadder() { if (currentStage !==2) return; const l1 = chromatids.find(c => c.id === 'L1a'); const s1 = chromatids.find(c => c.id === 'S1a'); if (!l1 || !s1) return; ctx.save(); ctx.strokeStyle = "#AAAAAA"; ctx.lineWidth = 1.8; ctx.setLineDash([]); const longLength = 56, longHalf = longLength/2; const leftLongX = l1.x, rightLongX = chromatids.find(c => c.id === 'L2a')?.x || l1.x + 120; const longY = l1.y; for (let i = 1; i <= 9; i++) { let t = i / 10; let yPos = longY - longHalf + t * longLength; ctx.beginPath(); ctx.moveTo(leftLongX - 5, yPos); ctx.lineTo(rightLongX + 5, yPos); ctx.stroke(); } const shortLength = 38, shortHalf = shortLength/2; const leftShortX = s1.x, rightShortX = chromatids.find(c => c.id === 'S2a')?.x || s1.x + 100; const shortY = s1.y; for (let i = 1; i <= 7; i++) { let t = i / 8; let yPos = shortY - shortHalf + t * shortLength; ctx.beginPath(); ctx.moveTo(leftShortX - 5, yPos); ctx.lineTo(rightShortX + 5, yPos); ctx.stroke(); } ctx.restore(); }
 
+        // ── Chiasmata: luminous X-shaped crossover points shown during Pachytene ──
+        function drawChiasmata() {
+            if (currentStage !== 3) return;
+            const L1 = chromatids.find(c => c.id === 'L1a');
+            const L2 = chromatids.find(c => c.id === 'L2a');
+            const S1 = chromatids.find(c => c.id === 'S1a');
+            const S2 = chromatids.find(c => c.id === 'S2a');
+            if (!L1 || !L2) return;
+
+            const now = performance.now();
+            const pulse = 0.5 + 0.5 * Math.sin(now * 0.0035);
+            // Flash intensity ramps up during the final phase of crossover animation
+            const flashBoost = (crossingOverActive && crossOverProgress > 0.58)
+                ? (crossOverProgress - 0.58) / 0.42 : 0;
+
+            function drawSingleChiasma(chx, chy, col1, col2, delay) {
+                // Determine opacity
+                let baseAlpha;
+                if (crossingOverCompleted) {
+                    baseAlpha = 0.70 + 0.26 * pulse;
+                } else if (crossingOverActive) {
+                    const localT = Math.max(0, Math.min(1, (crossOverProgress - delay) / Math.max(0.01, 1 - delay)));
+                    baseAlpha = localT;
+                } else {
+                    // Faint anticipatory hint before button is pressed
+                    baseAlpha = 0.18 + 0.10 * pulse;
+                }
+                if (baseAlpha < 0.01) return;
+
+                const glowR  = 12 + flashBoost * 24 + (crossingOverCompleted ? 5 * pulse : 0);
+                const armLen = 10;
+
+                ctx.save();
+                ctx.lineCap = 'round';
+
+                // ── 4 diagonal X arms ──────────────────────────────────────────
+                // NW+SE arms = col1 (one non-sister chromatid)
+                // NE+SW arms = col2 (the other non-sister chromatid)
+                [[-1, -1, col1], [+1, +1, col1], [+1, -1, col2], [-1, +1, col2]].forEach(([dx, dy, col]) => {
+                    ctx.save();
+                    ctx.globalAlpha  = baseAlpha * 0.72;
+                    ctx.shadowBlur   = glowR;
+                    ctx.shadowColor  = 'rgba(255, 248, 178, 0.95)';
+                    ctx.strokeStyle  = col;
+                    ctx.lineWidth    = 2.6;
+                    ctx.beginPath();
+                    ctx.moveTo(chx, chy);
+                    ctx.lineTo(chx + dx * armLen, chy + dy * armLen);
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                // ── Central exchange disc (bright white-gold node) ─────────────
+                ctx.save();
+                ctx.globalAlpha = Math.min(1, baseAlpha);
+                ctx.shadowBlur  = glowR * 1.4;
+                ctx.shadowColor = 'rgba(255, 252, 190, 1.0)';
+                ctx.beginPath(); ctx.arc(chx, chy, 3.2 + flashBoost * 2.2, 0, Math.PI*2);
+                ctx.fillStyle   = 'rgba(255, 250, 205, 0.95)'; ctx.fill();
+                ctx.shadowBlur  = 0;
+                // Bright white core
+                ctx.beginPath(); ctx.arc(chx, chy, 1.4, 0, Math.PI*2);
+                ctx.fillStyle   = 'rgba(255, 255, 248, 1.0)'; ctx.fill();
+                ctx.restore();
+
+                // ── "REC" micro-label after completion ────────────────────────
+                if (crossingOverCompleted) {
+                    ctx.save();
+                    ctx.globalAlpha  = Math.min(1, baseAlpha) * 0.88;
+                    ctx.font         = 'bold 7px monospace';
+                    ctx.fillStyle    = 'rgba(255, 250, 155, 0.92)';
+                    ctx.textAlign    = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.shadowBlur   = 5;
+                    ctx.shadowColor  = 'rgba(255, 245, 70, 0.80)';
+                    ctx.fillText('REC', chx, chy - armLen - 2);
+                    ctx.restore();
+                }
+
+                ctx.restore();
+            }
+
+            // ── Long bivalent chiasma — distal lower arm ───────────────────────
+            // L1 and L2 are 20 px apart (±10 from cx=450); arm extends 28 px down from centromere
+            drawSingleChiasma(
+                (L1.x + L2.x) * 0.5,   // midpoint between the two homologs in X
+                L1.y + 15,               // ~54% down the lower arm (arm = 28 px)
+                L1.color, L2.color,
+                0.0                      // no delay — appears first
+            );
+
+            // ── Short bivalent chiasma — distal lower arm ─────────────────────
+            // S1 and S2 are 18 px apart; arm extends 19 px down
+            if (S1 && S2) {
+                drawSingleChiasma(
+                    (S1.x + S2.x) * 0.5,
+                    S1.y + 11,           // ~58% down the short arm
+                    S1.color, S2.color,
+                    0.30                 // staggered: appears after long bivalent's chiasma
+                );
+            }
+        }
+
         // --- Spindle apparatus (for other stages) ---
         function drawSpindleApparatus() {
             if (currentStage ===4) {
@@ -4472,6 +4575,7 @@
                 chromatids.forEach(c => drawChromatidStage(c));
                 if (currentStage !== 7) drawNucleiForCurrentStageFinal();
                 drawSynaptonemalLadder();
+                drawChiasmata();
                 drawSpindleFibers();
             }
             
