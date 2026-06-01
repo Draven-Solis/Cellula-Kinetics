@@ -269,12 +269,7 @@
                     radius: 95 + Math.random() * 20
                 });
             }
-            for (let i = 0; i < 4; i++) {
-                mitochondriaPositions.push({
-                    x: 300 + Math.random() * 300,
-                    y: 160 + Math.random() * 200
-                });
-            }
+            mitochondriaPositions.push({ x: 330, y: 175 });
         }
         initializeInterphaseStructures();
 
@@ -2838,13 +2833,6 @@
                     drawER(nX, nY, nucleusRadius + 12, organelleProgress);
                 }
 
-                // GOLGI complex — large prominent stack, left of nucleus
-                let golgiProgress = 0;
-                if (elapsed > 4500 && elapsed < 7500) golgiProgress = (elapsed - 4500) / 3000;
-                else if (elapsed >= 7500) golgiProgress = 1;
-                drawGolgi(cx - 130, cy - 50, golgiProgress);
-                // Second smaller Golgi stack on right
-                drawGolgi(cx + 120, cy + 55, golgiProgress * 0.75);
 
                 // RIBOSOMES — free ribosomes scattered in cytoplasm
                 if (organelleProgress > 0) {
@@ -2866,23 +2854,16 @@
                 // Annotation labels that fade in with organelles
                 if (organelleProgress > 0.6) {
                     const labelAlpha = (organelleProgress - 0.6) / 0.4;
-                    drawAnnotation(ctx, cx - 128, cy - 52, "Cisterna of\nGolgi complex", labelAlpha, 'left');
                     drawAnnotation(ctx, cx + cellRadiusX - 25, cy - cellRadiusY*0.55, "Smooth ER", labelAlpha, 'right');
                     drawAnnotation(ctx, cx + cellRadiusX - 20, cy - cellRadiusY*0.2, "Rough ER", labelAlpha, 'right');
-                    drawAnnotation(ctx, cx - cellRadiusX + 15, cy + cellRadiusY*0.4, "Cytosol fill", labelAlpha, 'left');
                     if (organelleProgress > 0.75) {
                         const la2 = (organelleProgress - 0.75) / 0.25;
                         drawAnnotation(ctx, cx - cellRadiusX*0.45, cy - cellRadiusY*0.75, "Mitochondrion", la2, 'left');
-                        drawAnnotation(ctx, cx + cellRadiusX*0.35, cy + cellRadiusY*0.78, "Mitochondrion", la2, 'right');
                     }
                 }
 
                 if (elapsed >= 15000 && interphaseTimerRunning) {
                     interphaseTimerRunning = false;
-                    interphaseAnimationActive = false;
-                    currentStage =0;
-                    updateTargetPositions();
-                    chromatids.forEach(c => { c.x = c.targetX; c.y = c.targetY; });
                 }
             }
         }
