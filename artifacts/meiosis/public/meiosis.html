@@ -853,34 +853,42 @@
                 }
             }
 
-            // ── SMOOTH ER — tubular cisternae, lower-left of nucleus ────────────
-            // Tubular: filled round-cross-section tubes with visible lumen
+            // ── SMOOTH ER — tubular cisternae, lower-right of nucleus ───────────
+            // Positioned in the lower-right sector (≈18°–105°) so it is clearly
+            // separate from Rough ER (upper-right) and the Golgi (lower-left).
+            // No ribosomes — the defining visual difference from Rough ER.
             const numTubes = Math.max(1, Math.floor(4 * progress));
             for (let i = 0; i < numTubes; i++) {
-                const r   = radius * (0.78 + i * 0.082);
-                const a0  = Math.PI * 0.50 + i * 0.26;
-                const a1  = a0 + 0.68 + i * 0.04;
-                const tubeH = 4.8 + i * 0.5;
+                const r     = radius * (0.80 + i * 0.072);
+                const a0    = Math.PI * 0.10 + i * 0.15;   // ~18° stepping toward ~63°
+                const a1    = a0 + 0.62 + i * 0.03;
+                const tubeH = 5.0 + i * 0.5;               // slightly thicker tubes (no ribosomes)
 
                 ctx.beginPath();
-                ctx.arc(cx - 9, cy + 6, r + tubeH, a0, a1);
-                ctx.arc(cx - 9, cy + 6, r - tubeH, a1, a0, true);
+                ctx.arc(cx, cy, r + tubeH, a0, a1);
+                ctx.arc(cx, cy, r - tubeH, a1, a0, true);
                 ctx.closePath();
-                const sG = ctx.createRadialGradient(cx-9, cy+6, r - tubeH, cx-9, cy+6, r + tubeH + 4);
+                const sG = ctx.createRadialGradient(cx, cy, r - tubeH, cx, cy, r + tubeH + 4);
                 sG.addColorStop(0,   `rgba(110, 234, 215, ${progress * 0.75})`);
                 sG.addColorStop(0.5, `rgba(68,  206, 188, ${progress * 0.65})`);
                 sG.addColorStop(1,   `rgba(35,  168, 152, ${progress * 0.52})`);
                 ctx.fillStyle = sG; ctx.fill();
 
+                // Outer membrane stroke — teal/cyan, no ribosomes
                 ctx.shadowBlur = 4;
                 ctx.shadowColor = `rgba(60, 215, 198, ${progress * 0.36})`;
-                ctx.beginPath(); ctx.arc(cx - 9, cy + 6, r + tubeH, a0, a1);
+                ctx.beginPath(); ctx.arc(cx, cy, r + tubeH, a0, a1);
                 ctx.strokeStyle = `rgba(105, 238, 218, ${progress * 0.92})`;
-                ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.lineWidth = 1.6; ctx.stroke();
                 ctx.shadowBlur = 0;
-                ctx.beginPath(); ctx.arc(cx - 9, cy + 6, r - tubeH, a0, a1);
+                // Inner lumen stroke (slightly thinner)
+                ctx.beginPath(); ctx.arc(cx, cy, r - tubeH, a0, a1);
                 ctx.strokeStyle = `rgba(72, 204, 185, ${progress * 0.70})`;
                 ctx.lineWidth = 1.1; ctx.stroke();
+                // Lumen highlight stripe along tube centre line
+                ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1);
+                ctx.strokeStyle = `rgba(185, 248, 238, ${progress * 0.28})`;
+                ctx.lineWidth = tubeH * 0.55; ctx.stroke();
             }
             ctx.restore();
         }
@@ -3331,11 +3339,12 @@
 
 
                 // GOLGI complex — single stack, lower-left, cis face toward nucleus
+                // Placed well inside the cell (not touching membrane)
                 {
                     let golgiProgress = 0;
                     if (elapsed > 4500 && elapsed < 7500) golgiProgress = (elapsed - 4500) / 3000;
                     else if (elapsed >= 7500) golgiProgress = 1;
-                    const golgiX = cx - 155, golgiY = cy + 85;
+                    const golgiX = cx - 118, golgiY = cy + 58;
                     // Rotate so local "up" (cis face, i=0) points toward nucleus
                     const golgiAngle = Math.PI / 2 + Math.atan2(nY - golgiY, nX - golgiX) + Math.PI;
                     drawGolgi(golgiX, golgiY, golgiProgress, golgiAngle, 0.72);
@@ -3361,9 +3370,18 @@
                 // Annotation labels that fade in with organelles
                 if (organelleProgress > 0.6) {
                     const labelAlpha = (organelleProgress - 0.6) / 0.4;
-                    drawAnnotation(ctx, cx - 155, cy + 85 + 52, "Golgi complex", labelAlpha, 'left');
-                    drawAnnotation(ctx, cx + cellRadiusX - 25, cy - cellRadiusY*0.55, "Smooth ER", labelAlpha, 'right');
-                    drawAnnotation(ctx, cx + cellRadiusX - 20, cy - cellRadiusY*0.2, "Rough ER", labelAlpha, 'right');
+
+                    // Golgi — dot on the stack centre, text extends left
+                    drawAnnotation(ctx, cx - 118, cy + 58, "Golgi complex", labelAlpha, 'left');
+
+                    // Rough ER — upper-right of nucleus (angles ~ -104° to +4°)
+                    // Dot placed at ~-45° on the outer cisterna rim
+                    drawAnnotation(ctx, nX + 88, nY - 82, "Rough ER", labelAlpha, 'right');
+
+                    // Smooth ER — lower-right of nucleus (angles ~18°–105°)
+                    // Dot placed at ~55° on the outer tube rim
+                    drawAnnotation(ctx, nX + 80, nY + 96, "Smooth ER", labelAlpha, 'right');
+
                     if (organelleProgress > 0.75) {
                         const la2 = (organelleProgress - 0.75) / 0.25;
                         drawAnnotation(ctx, cx - cellRadiusX*0.45, cy - cellRadiusY*0.75, "Mitochondrion", la2, 'left');
