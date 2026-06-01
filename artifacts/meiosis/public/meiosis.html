@@ -841,10 +841,14 @@
             ctx.restore();
         }
 
-        function drawGolgi(x, y, progress) {
+        function drawGolgi(x, y, progress, angle, scale) {
             if (progress <= 0) return;
+            angle = angle || 0;
+            scale = scale || 1;
             ctx.save();
             ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.scale(scale, scale);
 
             const stacks = Math.ceil(7 * progress);
             ctx.shadowBlur = 14;
@@ -2834,12 +2838,15 @@
                 }
 
 
-                // GOLGI complex — single stack, lower-left, away from nucleus and ER
+                // GOLGI complex — single stack, lower-left, cis face toward nucleus
                 {
                     let golgiProgress = 0;
                     if (elapsed > 4500 && elapsed < 7500) golgiProgress = (elapsed - 4500) / 3000;
                     else if (elapsed >= 7500) golgiProgress = 1;
-                    drawGolgi(cx - 155, cy + 85, golgiProgress);
+                    const golgiX = cx - 155, golgiY = cy + 85;
+                    // Rotate so local "up" (cis face, i=0) points toward nucleus
+                    const golgiAngle = Math.PI / 2 + Math.atan2(nY - golgiY, nX - golgiX);
+                    drawGolgi(golgiX, golgiY, golgiProgress, golgiAngle, 0.72);
                 }
 
                 // RIBOSOMES — free ribosomes scattered in cytoplasm
