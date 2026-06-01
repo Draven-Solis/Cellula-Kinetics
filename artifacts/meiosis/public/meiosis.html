@@ -733,6 +733,7 @@
             const APPEAR = 7000, APPEAR_DUR = 2500;   // threads materialise
             const DUP    = 9500, DUP_DUR    = 4000;   // sister chromatid separation
             const COND   = 13500, COND_DUR  = 5000;   // condensation
+            const DRIFT  = 22000, DRIFT_DUR = 4000;   // chromosomes drift into cytoplasm
 
             const threadAlpha = elapsed < APPEAR ? 0
                 : elapsed < APPEAR + APPEAR_DUR ? (elapsed - APPEAR) / APPEAR_DUR : 1;
@@ -742,53 +743,70 @@
                 : elapsed < DUP + DUP_DUR ? (elapsed - DUP) / DUP_DUR : 1;
             const condT = elapsed < COND ? 0
                 : elapsed < COND + COND_DUR ? (elapsed - COND) / COND_DUR : 1;
-            // Smooth ease for condensation
             const condE = condT < 0.5 ? 2*condT*condT : 1 - Math.pow(-2*condT+2,2)/2;
 
-            // 4 chromosome pairs: [color, 5 control-points (normalized, ±1), drift-phases]
-            // Control points are in nucleus-relative space scaled by radius.
-            // Index 2 is treated as the centromere (convergence point for condensation).
+            const driftRaw = elapsed < DRIFT ? 0
+                : elapsed < DRIFT + DRIFT_DUR ? (elapsed - DRIFT) / DRIFT_DUR : 1;
+            const driftE = driftRaw < 0.5 ? 2*driftRaw*driftRaw : 1 - Math.pow(-2*driftRaw+2,2)/2;
+
+            // 4 chromosomes: color, 5 control-points (normalized ±1), oscillation phases,
+            // cytoplasm drift target (normalized, relative to nucleus center, ~1.5× radius = cytoplasm).
             const CHROMS = [
-                { col:[255,145, 30],  // orange – Ch 1
+                { col:[255,145, 30],
                   pts:[[-0.48,-0.28],[-0.16,-0.50],[ 0.15,-0.30],[ 0.40,-0.04],[ 0.22, 0.38]],
-                  ph:[0.0,1.2,2.4,3.6,4.8] },
-                { col:[ 65,130,220],  // blue   – Ch 2
+                  ph:[0.0,1.2,2.4,3.6,4.8], tgt:[ 1.10,-0.78] },  // orange → upper-right
+                { col:[ 65,130,220],
                   pts:[[ 0.44,-0.38],[ 0.14,-0.07],[-0.10, 0.18],[-0.28, 0.44],[-0.50, 0.15]],
-                  ph:[0.8,2.0,3.2,4.4,5.6] },
-                { col:[218, 50, 50],  // red    – Ch 3
+                  ph:[0.8,2.0,3.2,4.4,5.6], tgt:[-1.12, 0.70] },  // blue   → lower-left
+                { col:[218, 50, 50],
                   pts:[[-0.34, 0.28],[-0.05, 0.50],[ 0.24, 0.34],[ 0.50, 0.05],[ 0.32,-0.34]],
-                  ph:[1.6,2.8,4.0,5.2,0.4] },
-                { col:[ 35,198,198],  // cyan   – Ch 4
+                  ph:[1.6,2.8,4.0,5.2,0.4], tgt:[ 0.95, 0.88] },  // red    → lower-right
+                { col:[ 35,198,198],
                   pts:[[-0.24,-0.54],[ 0.08,-0.34],[ 0.30,-0.52],[ 0.14,-0.14],[-0.16, 0.06]],
-                  ph:[2.4,3.6,4.8,0.0,1.2] },
+                  ph:[2.4,3.6,4.8,0.0,1.2], tgt:[-0.88,-0.90] },  // cyan   → upper-left
             ];
 
             const t   = elapsed / 1000;
-            const amp = 3.5 * (1 - condE);  // floating amplitude → 0 once condensation starts
+            const amp = 3.5 * (1 - condE);  // floating stops as condensation starts
 
             ctx.save();
-            ctx.beginPath(); ctx.arc(nX, nY, radius * 0.90, 0, Math.PI*2); ctx.clip();
+            // Clip to nucleus while threads are inside; release clip so chromosomes
+            // can drift into the cytoplasm during the drift phase.
+            if (driftE === 0) {
+                ctx.beginPath(); ctx.arc(nX, nY, radius * 0.90, 0, Math.PI*2); ctx.clip();
+            }
 
-            for (const ch of CHROMS) {
+            for (let ci = 0; ci < CHROMS.length; ci++) {
+                const ch = CHROMS[ci];
                 const [r,g,b] = ch.col;
-                const [cx2, cy2] = ch.pts[2]; // centromere – condensation target
+                const [cx2, cy2] = ch.pts[2]; // centromere — condensation target
 
-                // Build screen-space points for one copy (perpOff = lateral separation)
+                // Screen-space condensed centromere position (start of drift)
+                const condSX = nX + cx2 * radius;
+                const condSY = nY + cy2 * radius;
+                // Cytoplasm landing position (~1.5× radius from nucleus centre)
+                const driftTX = nX + ch.tgt[0] * radius * 1.50;
+                const driftTY = nY + ch.tgt[1] * radius * 1.50;
+
                 const buildPts = (perpOff) => ch.pts.map((p, i) => {
-                    // Condense: lerp each point 80% toward centromere
+                    // Condense: lerp 80% toward centromere
                     const nx = p[0] + (cx2 - p[0]) * condE * 0.80;
                     const ny = p[1] + (cy2 - p[1]) * condE * 0.80;
-                    // Slow floating oscillation, zero once fully condensed
+                    // Slow oscillation (stops when condensed)
                     const fx = amp * Math.sin(t * 0.55 + ch.ph[i]);
                     const fy = amp * Math.cos(t * 0.45 + ch.ph[i] + 1.1);
-                    // Perpendicular separation for sister chromatid
+                    // Perpendicular sister-chromatid separation
                     const px =  perpOff * Math.cos(ch.ph[i] + 0.52);
                     const py =  perpOff * Math.sin(ch.ph[i] + 0.52);
-                    return [ nX + nx*radius + fx + px,
-                             nY + ny*radius + fy + py ];
+                    // Drift: every point translates by the same vector (centromere → target)
+                    const sx = nX + nx*radius + fx + px;
+                    const sy = nY + ny*radius + fy + py;
+                    return [
+                        sx + (driftTX - condSX) * driftE,
+                        sy + (driftTY - condSY) * driftE,
+                    ];
                 });
 
-                // Draw one thread as a smooth catmull-rom-like bezier
                 const strokeThread = (pts, alpha, lw) => {
                     ctx.beginPath();
                     ctx.moveTo((pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2);
@@ -810,17 +828,36 @@
                     ctx.shadowBlur  = 0;
                 };
 
-                // Separation grows as duplication completes, collapses 65% as condensation starts
                 const sep = 5.5 * dupT * (1 - condE * 0.65);
-                // Thread fattens from 1.6 (loose thread) to 6.4 (condensed chromosome)
                 const lw  = 1.6 + condE * 4.8;
 
-                // Original chromatid
                 strokeThread(buildPts(-sep), threadAlpha * 0.93, lw);
-                // Sister chromatid (fades in proportional to duplication progress)
                 if (dupT > 0.02) {
                     strokeThread(buildPts(+sep), threadAlpha * dupT * 0.90, lw);
                 }
+            }
+
+            ctx.restore();
+        }
+
+        // Nuclear-envelope fragment helper — arc shards drift radially outward as
+        // the envelope breaks down at late interphase / early prophase I.
+        function _drawNuclearFragments(x, y, r, fragT, alpha) {
+            const N = 10;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            for (let i = 0; i < N; i++) {
+                const baseAng = (i / N) * Math.PI * 2 + 0.18;
+                const drift   = fragT * 32;          // drift outward up to 32 px
+                const arcSpan = Math.max(0.06, 0.30 - fragT * 0.20); // shrink as they drift
+                ctx.strokeStyle = `rgba(120, 190, 240, 0.88)`;
+                ctx.lineWidth   = Math.max(0.3, 2.0 - fragT * 1.5);
+                ctx.shadowBlur  = 5;
+                ctx.shadowColor = 'rgba(80, 180, 230, 0.45)';
+                ctx.beginPath();
+                ctx.arc(x, y, r + drift, baseAng - arcSpan / 2, baseAng + arcSpan / 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
             }
             ctx.restore();
         }
@@ -3448,8 +3485,17 @@
                     ctx.restore();
                 }
 
+                // Nuclear envelope fragmentation — shards drift outward as NEBD begins
+                // (starts ~21 s, peaks mid-dissolve, fades by 26 s)
+                if (elapsed > 21000) {
+                    const fragT   = Math.min(1, (elapsed - 21000) / 5000);
+                    const fragA   = fragT * (1 - fragT) * 3.8 * Math.max(0, 1 - organelleFade * 1.6);
+                    if (fragA > 0.02) _drawNuclearFragments(nX, nY, nucleusRadius, fragT, fragA);
+                }
+
                 // ── Colored chromatin threads (new animated phase) ───────────────
-                // Threads appear at 7000ms, duplicate at 9500ms, condense at 13500ms
+                // Threads appear at 7000ms, duplicate at 9500ms, condense at 13500ms,
+                // then drift outward into cytoplasm at 22000ms (nuclear envelope breakdown).
                 drawInterphaseChromatinPhase(nX, nY, nucleusRadius - 6, elapsed);
 
                 // ── MITOCHONDRIA ─────────────────────────────────────────────────
@@ -5499,20 +5545,29 @@
                 //   topNorth  → (330, 100)   topSouth  → (570, 100)
                 //   botNorth  → (330, 420)   botSouth  → (570, 420)
                 const gamRX = 80, gamRY = 80;
+                // Target positions form a clean 2×2 grid.
+                // Each gamete drifts LATERALLY (x) with minimal vertical shift so
+                // no daughter cell moves against its biological direction.
+                // tN (origin y=80)  → top-left  (290, 120): +40 px down,  -160 px left  ✓
+                // tS (origin y=172) → top-right  (610, 120):  -52 px up,  +160 px right  (small upward ok)
+                // bN (origin y=348) → bot-left   (290, 400): +52 px down, -160 px left  ✓
+                // bS (origin y=440) → bot-right  (610, 400):  -40 px up,  +160 px right ✓
                 const cells = [
-                    { key:'tN', tgtCX:330, tgtCY: 98,  originCX:450, originCY:topCY-poleOff, cs:[tLA,tSA] },
-                    { key:'tS', tgtCX:570, tgtCY: 98,  originCX:450, originCY:topCY+poleOff, cs:[tLB,tSB] },
-                    { key:'bN', tgtCX:330, tgtCY:422,  originCX:450, originCY:botCY-poleOff, cs:[bLA,bSA] },
-                    { key:'bS', tgtCX:570, tgtCY:422,  originCX:450, originCY:botCY+poleOff, cs:[bLB,bSB] },
+                    { key:'tN', tgtCX:290, tgtCY:120,  originCX:450, originCY:topCY-poleOff, cs:[tLA,tSA] },
+                    { key:'tS', tgtCX:610, tgtCY:120,  originCX:450, originCY:topCY+poleOff, cs:[tLB,tSB] },
+                    { key:'bN', tgtCX:290, tgtCY:400,  originCX:450, originCY:botCY-poleOff, cs:[bLA,bSA] },
+                    { key:'bS', tgtCX:610, tgtCY:400,  originCX:450, originCY:botCY+poleOff, cs:[bLB,bSB] },
                 ];
 
                 // Slight elastic overshoot at the end
                 const overshoot = drift>0.85 ? Math.sin((drift-0.85)/0.15*Math.PI)*6 : 0;
 
                 for (const g of cells) {
-                    const isNorth = g.key.endsWith('N');
-                    const cx = g.originCX + (g.tgtCX - g.originCX) * drift;
-                    const cy = g.originCY + (g.tgtCY - g.originCY) * drift + (isNorth ? -overshoot : overshoot);
+                    // Primary movement is horizontal: N cells go LEFT, S cells go RIGHT.
+                    // Elastic overshoot is applied on the X axis (direction of travel).
+                    const isLeft = g.key.endsWith('N');  // tN, bN → left side
+                    const cx = g.originCX + (g.tgtCX - g.originCX) * drift + (isLeft ? -overshoot : overshoot);
+                    const cy = g.originCY + (g.tgtCY - g.originCY) * drift;
                     const r  = gamRX * Math.min(1, drift * 1.6);  // cell grows in as it rounds up
 
                     drawCytoplasm(cx, cy, r, r, drift);
