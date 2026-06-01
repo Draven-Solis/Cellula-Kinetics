@@ -255,12 +255,12 @@
             chromatinSegments = [];
             ribosomePositions = [];
             mitochondriaPositions = [];
-            for (let i = 0; i < 45; i++) {
+            for (let i = 0; i < 48; i++) {
                 chromatinSegments.push({
                     angle: Math.random() * Math.PI * 2,
-                    offX: (Math.random() - 0.5) * 50,
-                    offY: (Math.random() - 0.5) * 50,
-                    curve: Math.random() * 1.5
+                    offX: (Math.random() - 0.5) * 90,
+                    offY: (Math.random() - 0.5) * 90,
+                    curve: (Math.random() - 0.5) * 1.4
                 });
             }
             for (let i = 0; i < 30; i++) {
@@ -644,34 +644,40 @@
         function drawChromatin(x, y, radius, density) {
             if (density <= 0) return;
             ctx.save();
+            // Clip strands to nucleus boundary
+            ctx.beginPath(); ctx.arc(x, y, radius * 0.94, 0, Math.PI * 2); ctx.clip();
             const visibleCount = Math.floor(chromatinSegments.length * (0.4 + density * 0.6));
             for (let i = 0; i < visibleCount; i++) {
                 const seg  = chromatinSegments[i];
-                const len  = radius * (0.38 + density * 0.42);
-                const dist = Math.hypot(seg.offX, seg.offY) / 50;
-                // Peripheral = heterochromatin (dense, dark blue-grey)
-                // Interior   = euchromatin (open, warm blue-lavender)
+                const sc   = radius / 80;
+                // Centre of this fibre — scattered randomly throughout nucleus
+                const px   = x + seg.offX * sc;
+                const py   = y + seg.offY * sc;
+                // Skip segments outside the nucleus
+                if (Math.hypot(px - x, py - y) > radius * 0.90) continue;
+                const dist = Math.hypot(seg.offX, seg.offY) / 45;
+                // Peripheral = heterochromatin (dense), interior = euchromatin (open)
                 const isHetero = dist > 0.52;
-                const sc = radius / 80;
-                const x1  = x + Math.cos(seg.angle)               * len * 0.22 + seg.offX * sc;
-                const y1  = y + Math.sin(seg.angle)               * len * 0.22 + seg.offY * sc;
-                const cx1 = x + Math.cos(seg.angle + seg.curve * 0.5) * len * 0.60 + seg.offX * sc;
-                const cy1 = y + Math.sin(seg.angle + seg.curve * 0.5) * len * 0.60 + seg.offY * sc;
-                const x2  = x + Math.cos(seg.angle + seg.curve)   * len        + seg.offX * sc;
-                const y2  = y + Math.sin(seg.angle + seg.curve)   * len        + seg.offY * sc;
+                // Short fibre — length proportional to density, NOT radiating from centre
+                const halfLen = radius * (0.10 + density * 0.11);
+                const ca = seg.angle, cv = seg.curve;
+                const x1  = px - Math.cos(ca) * halfLen;
+                const y1  = py - Math.sin(ca) * halfLen;
+                const cx1 = px + Math.cos(ca + Math.PI / 2) * halfLen * cv;
+                const cy1 = py + Math.sin(ca + Math.PI / 2) * halfLen * cv;
+                const x2  = px + Math.cos(ca) * halfLen;
+                const y2  = py + Math.sin(ca) * halfLen;
 
                 if (isHetero) {
-                    // Heterochromatin — dark, condensed, blue-grey with slight purple
                     ctx.shadowBlur  = 5;
                     ctx.shadowColor = `rgba(80, 110, 200, 0.45)`;
                     ctx.strokeStyle = `rgba(105, 128, 210, ${0.72 + density * 0.26})`;
-                    ctx.lineWidth   = 2.4;
+                    ctx.lineWidth   = 2.2;
                 } else {
-                    // Euchromatin — open, lavender-blue, finer strands
                     ctx.shadowBlur  = 2;
                     ctx.shadowColor = `rgba(130, 160, 240, 0.25)`;
                     ctx.strokeStyle = `rgba(158, 182, 248, ${0.38 + density * 0.48})`;
-                    ctx.lineWidth   = 1.5;
+                    ctx.lineWidth   = 1.4;
                 }
                 ctx.lineCap = 'round';
                 ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx1, cy1, x2, y2); ctx.stroke();
@@ -846,43 +852,53 @@
             ctx.translate(x, y);
 
             const stacks = Math.ceil(7 * progress);
-            ctx.shadowBlur = 16;
-            ctx.shadowColor = `rgba(182, 218, 78, ${progress * 0.48})`;
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = `rgba(182, 218, 78, ${progress * 0.40})`;
 
             for (let i = 0; i < stacks; i++) {
                 const t    = i / Math.max(stacks - 1, 1);   // 0 = cis face, 1 = trans face
-                const yOff = (i - stacks / 2 + 0.5) * 6.0;
-                // Cisternae taper: cis wide & flatter, trans narrower & more curved
-                const halfW = 26 - t * 12;
-                const halfH = 4.2 - t * 0.8;
-                const bowAng = -0.10 + t * 0.08;   // slight bow per cisterna
+                const yOff = (i - stacks / 2 + 0.5) * 7.5;
+                // Width tapers cis (wide) → trans (narrow); curvature grows cis → trans
+                const halfW = 30 - t * 13;
+                const bend  = 5 + t * 10;   // upward bow of each cisterna
 
                 // Color gradient cis→trans: cream-tan to olive-gold
                 const rC = Math.round(200 + t * 38);
-                const gC = Math.round(200 - t * 42);
+                const gC = Math.round(198 - t * 40);
                 const bC = Math.round(88  - t * 30);
 
                 ctx.save();
-                ctx.rotate(bowAng);
+
+                // ── Draw each cisterna as a smooth curved ribbon ────────────────
+                // Top edge arcs upward, bottom edge follows with less bend,
+                // left/right ends are rounded — giving the classic banana shape.
+                ctx.beginPath();
+                ctx.moveTo(-halfW, yOff);
+                // top edge arc
+                ctx.bezierCurveTo(-halfW * 0.33, yOff - bend, halfW * 0.33, yOff - bend, halfW, yOff);
+                // right rounded cap
+                ctx.bezierCurveTo(halfW + 3, yOff + 1, halfW + 3, yOff + 3.5, halfW, yOff + 4.5);
+                // bottom edge arc (slightly less bent for lumen depth)
+                ctx.bezierCurveTo(halfW * 0.33, yOff - bend * 0.52 + 4.5, -halfW * 0.33, yOff - bend * 0.52 + 4.5, -halfW, yOff + 4.5);
+                // left rounded cap
+                ctx.bezierCurveTo(-halfW - 3, yOff + 3.5, -halfW - 3, yOff + 1, -halfW, yOff);
+                ctx.closePath();
 
                 // ── Lumen fill ─────────────────────────────────────────────────
-                ctx.beginPath(); ctx.ellipse(0, yOff, Math.max(halfW - 1.5, 4), Math.max(halfH - 1.0, 1.2), 0, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(${rC},${gC},${bC},${progress * 0.48})`; ctx.fill();
+                const lG = ctx.createLinearGradient(-halfW, yOff - bend, halfW, yOff - bend);
+                lG.addColorStop(0,   `rgba(${rC-18},${gC+18},${bC+12},${progress * 0.40})`);
+                lG.addColorStop(0.5, `rgba(${rC+14},${gC+ 8},${bC- 5},${progress * 0.62})`);
+                lG.addColorStop(1,   `rgba(${rC-14},${gC+14},${bC+10},${progress * 0.40})`);
+                ctx.fillStyle = lG; ctx.fill();
 
-                // ── Membrane with gradient ─────────────────────────────────────
-                ctx.beginPath(); ctx.ellipse(0, yOff, Math.max(halfW, 5), halfH, 0, 0, Math.PI*2);
-                const gG = ctx.createLinearGradient(-halfW, yOff - halfH, halfW, yOff + halfH);
-                gG.addColorStop(0,   `rgba(${rC-18},${gC+22},${bC+12},${progress * 0.58})`);
-                gG.addColorStop(0.38,`rgba(${rC+22},${gC+12},${bC-8}, ${progress * 0.88})`);
-                gG.addColorStop(0.68,`rgba(${rC+12},${gC+8}, ${bC-4}, ${progress * 0.82})`);
-                gG.addColorStop(1,   `rgba(${rC-14},${gC+18},${bC+8}, ${progress * 0.58})`);
-                ctx.fillStyle = gG; ctx.fill();
-                ctx.strokeStyle = `rgba(${Math.min(255,rC+48)},${Math.min(255,gC+30)},${Math.min(255,bC+22)},${progress * 0.82})`;
-                ctx.lineWidth = 1.1; ctx.stroke();
+                // ── Membrane stroke ────────────────────────────────────────────
+                ctx.strokeStyle = `rgba(${Math.min(255,rC+48)},${Math.min(255,gC+28)},${Math.min(255,bC+20)},${progress * 0.88})`;
+                ctx.lineWidth = 1.2; ctx.stroke();
 
-                // ── Specular stripe on lit side of each cisterna ───────────────
-                ctx.beginPath(); ctx.ellipse(-halfW*0.18, yOff - halfH * 0.5, halfW * 0.42, halfH * 0.30, 0, 0, Math.PI*2);
-                ctx.fillStyle = `rgba(255, 255, 225, ${progress * (0.22 - t * 0.08)})`; ctx.fill();
+                // ── Specular highlight along lit top arc ───────────────────────
+                ctx.beginPath();
+                ctx.ellipse(-halfW * 0.14, yOff - bend * 0.62, halfW * 0.40, 1.6, 0, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 224, ${progress * (0.26 - t * 0.10)})`; ctx.fill();
 
                 ctx.restore();
             }
@@ -891,7 +907,7 @@
             // ── Secretory vesicles (trans face, budding outward) ──────────────
             if (progress > 0.42) {
                 const vp = Math.min(1, (progress - 0.42) / 0.48);
-                [[28, -12, 5.8], [32, -4, 4.5], [26, 5, 5.2], [33, 1, 3.5], [29, -8, 3.8]].forEach(([vx, vy, vr]) => {
+                [[30, -10, 5.8], [34, -2, 4.5], [28, 7, 5.2], [35, 3, 3.5], [31, -6, 3.8]].forEach(([vx, vy, vr]) => {
                     const r = vr * vp;
                     if (r < 0.5) return;
                     const vG = ctx.createRadialGradient(vx - r*0.40, vy - r*0.40, 0.3, vx + r*0.08, vy + r*0.08, r*1.06);
@@ -911,7 +927,7 @@
             // ── Transition vesicles (cis face, incoming from ER) ──────────────
             if (progress > 0.58) {
                 const tvp = Math.min(1, (progress - 0.58) / 0.35);
-                [[-28, -14, 4.2], [-25, -6, 3.5], [-30, 3, 4.0]].forEach(([tx, ty, tr]) => {
+                [[-30, -12, 4.2], [-27, -4, 3.5], [-31, 5, 4.0]].forEach(([tx, ty, tr]) => {
                     const r = tr * tvp;
                     if (r < 0.5) return;
                     const tvG = ctx.createRadialGradient(tx - r*0.38, ty - r*0.38, 0.2, tx + r*0.05, ty + r*0.05, r*1.04);
