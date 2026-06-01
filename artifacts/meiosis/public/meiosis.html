@@ -3071,6 +3071,10 @@
                         speed: 0.00011 + Math.random() * 0.00003,
                     });
                 }
+                // Lock immediately — the ovum is committed to fertilization;
+                // the cycle clock must never release another egg or reset menses.
+                _ovulationOccurred = true;
+                _fertilizationSuccessful = true;
             }
 
             // ── Fertilization sperm path: vagina → cervix → uterus → left tube → ampulla ──
