@@ -3001,6 +3001,82 @@
             }
 
             // ════════════════════════════════════════════════════════════════
+            //  FERTILIZATION SEQUENCE PROGRESS BAR
+            //  Appears below the clock once _fertState is initialised
+            // ════════════════════════════════════════════════════════════════
+            if (_fertilizationMode && _fertState) {
+                const STAGES = ['sperm_migration','bubble','zygote','cleavage','morula','implantation'];
+                const LABELS = ['Sperm','Fusion','Zygote','Cleavage','Morula','Implant'];
+                const curIdx = Math.max(0, STAGES.indexOf(_fertState.phase));
+
+                const barW  = 224;
+                const barX0 = clkX - barW / 2;
+                const barY  = clkY + clkR + 28;   // below clock + OVULATION flash clearance
+                const stepW = barW / (STAGES.length - 1);
+
+                // Dark backdrop pill
+                ctx.save();
+                ctx.fillStyle   = 'rgba(8,4,18,0.82)';
+                ctx.strokeStyle = 'rgba(130,90,210,0.38)';
+                ctx.lineWidth   = 1;
+                ctx.beginPath();
+                ctx.roundRect(barX0 - 10, barY - 11, barW + 20, 29, 6);
+                ctx.fill(); ctx.stroke();
+
+                // Dim connector line (full width)
+                ctx.beginPath();
+                ctx.moveTo(barX0, barY); ctx.lineTo(barX0 + barW, barY);
+                ctx.strokeStyle = 'rgba(100,65,170,0.30)';
+                ctx.lineWidth = 2; ctx.stroke();
+
+                // Filled progress line up to active stage
+                if (curIdx > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(barX0, barY);
+                    ctx.lineTo(barX0 + curIdx * stepW, barY);
+                    ctx.strokeStyle = 'rgba(155,105,255,0.78)';
+                    ctx.lineWidth = 2;
+                    ctx.shadowBlur = 7; ctx.shadowColor = '#9855ff';
+                    ctx.stroke(); ctx.shadowBlur = 0;
+                }
+
+                // Stage dots + labels
+                STAGES.forEach((stage, i) => {
+                    const sx     = barX0 + i * stepW;
+                    const done   = i < curIdx;
+                    const active = i === curIdx;
+                    const dotR   = active ? 5.5 : 4;
+                    const dotCol = (done || active) ? 'rgba(175,125,255,1.0)' : 'rgba(75,50,120,0.55)';
+
+                    // Outer glow ring for active step
+                    if (active) {
+                        ctx.beginPath(); ctx.arc(sx, barY, dotR + 5, 0, Math.PI * 2);
+                        ctx.fillStyle = 'rgba(155,90,255,0.16)'; ctx.fill();
+                    }
+
+                    // Dot
+                    ctx.beginPath(); ctx.arc(sx, barY, dotR, 0, Math.PI * 2);
+                    ctx.fillStyle = dotCol;
+                    if (active) { ctx.shadowBlur = 12; ctx.shadowColor = '#b870ff'; }
+                    ctx.fill(); ctx.shadowBlur = 0;
+                    if (!done && !active) {
+                        ctx.strokeStyle = 'rgba(100,70,165,0.50)';
+                        ctx.lineWidth = 1.2; ctx.stroke();
+                    }
+
+                    // Label
+                    ctx.font      = active ? 'bold 6px Segoe UI, system-ui' : '5.8px Segoe UI, system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = active ? 'rgba(215,180,255,1.0)'
+                        : done  ? 'rgba(165,130,230,0.85)'
+                        :         'rgba(100,72,155,0.60)';
+                    ctx.fillText(LABELS[i], sx, barY + 13);
+                });
+
+                ctx.restore();
+            }
+
+            // ════════════════════════════════════════════════════════════════
             //  MENSTRUATION BLOOD DROPLETS  (days 1–5)
             //  Roundish particles fall from the cervical os (fx, fy+94)
             // ════════════════════════════════════════════════════════════════
