@@ -2834,6 +2834,14 @@
                 }
 
 
+                // GOLGI complex — single stack, lower-left, away from nucleus and ER
+                {
+                    let golgiProgress = 0;
+                    if (elapsed > 4500 && elapsed < 7500) golgiProgress = (elapsed - 4500) / 3000;
+                    else if (elapsed >= 7500) golgiProgress = 1;
+                    drawGolgi(cx - 155, cy + 85, golgiProgress);
+                }
+
                 // RIBOSOMES — free ribosomes scattered in cytoplasm
                 if (organelleProgress > 0) {
                     const radiusScale = cellRadiusX / 200;
@@ -2854,6 +2862,7 @@
                 // Annotation labels that fade in with organelles
                 if (organelleProgress > 0.6) {
                     const labelAlpha = (organelleProgress - 0.6) / 0.4;
+                    drawAnnotation(ctx, cx - 155, cy + 85 + 52, "Golgi complex", labelAlpha, 'left');
                     drawAnnotation(ctx, cx + cellRadiusX - 25, cy - cellRadiusY*0.55, "Smooth ER", labelAlpha, 'right');
                     drawAnnotation(ctx, cx + cellRadiusX - 20, cy - cellRadiusY*0.2, "Rough ER", labelAlpha, 'right');
                     if (organelleProgress > 0.75) {
