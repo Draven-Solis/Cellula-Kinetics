@@ -133,6 +133,12 @@
         <button id="crossingOverBtn" class="btn-special" style="display:none">✨ Initiate Crossing Over</button>
         <button id="nextBtn" class="btn-primary">Next Stage ▶</button>
     </div>
+    <div id="crossingOverWarn" style="display:none; text-align:center; margin: 6px 0 0; padding: 6px 16px; background: rgba(155,89,182,0.18); border: 1px solid #9b59b6; border-radius: 24px; color: #d8a8f0; font-size: 0.82rem; animation: fadeWarn 3s ease forwards;">
+        ⚠️ Please click <b>✨ Initiate Crossing Over</b> and wait for it to complete before advancing.
+    </div>
+    <style>
+        @keyframes fadeWarn { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+    </style>
     <div id="fertToggle" style="display:none;gap:6px;justify-content:center;align-items:center;margin-top:6px;">
         <span style="font-size:0.75rem;color:#9ab0b8;">Reproductive Mode:</span>
         <button id="fertOff" class="btn-fert btn-fert-off fert-active">No Fertilization</button>
@@ -260,6 +266,34 @@
         let chromatinSegments = [];
         let ribosomePositions = [];
         let mitochondriaPositions = [];
+
+        // ── Page Visibility API — prevent animation teleport when switching tabs ──
+        // When requestAnimationFrame pauses (tab hidden) but performance.now() keeps
+        // running, all elapsed-time calculations jump ahead on return. We track the
+        // accumulated hidden duration and shift every stored start-time forward by
+        // that amount so animations resume seamlessly.
+        let _hiddenAt = 0;
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                _hiddenAt = performance.now();
+            } else if (_hiddenAt > 0) {
+                const gap = performance.now() - _hiddenAt;
+                if (cytokinesisStartTime       > 0) cytokinesisStartTime       += gap;
+                if (metaphaseIAttachStartTime  > 0) metaphaseIAttachStartTime  += gap;
+                if (metaphaseIIAttachStartTime > 0) metaphaseIIAttachStartTime += gap;
+                if (anaphase2CustomStartTime   > 0) anaphase2CustomStartTime   += gap;
+                if (telophase2StartTime        > 0) telophase2StartTime        += gap;
+                if (cytokinesis2StartTime      > 0) cytokinesis2StartTime      += gap;
+                if (gameteMaturationStartTime  > 0) gameteMaturationStartTime  += gap;
+                if (interkinesisStartTime      > 0) interkinesisStartTime      += gap;
+                if (prophaseIIStartTime        > 0) prophaseIIStartTime        += gap;
+                if (interphaseStartTime        > 0) interphaseStartTime        += gap;
+                if (window._anatStartTime)         window._anatStartTime       += gap;
+                if (_ovStartTime               > 0) _ovStartTime               += gap;
+                if (_lastDropSpawn             > 0) _lastDropSpawn             += gap;
+                _hiddenAt = 0;
+            }
+        });
 
         function initializeInterphaseStructures() {
             chromatinSegments = [];
@@ -5050,14 +5084,16 @@
                 drawSpindleFibers();
             }
             
-            document.getElementById("stageTitle").innerText = stages[currentStage].name;
-            document.getElementById("stageDesc").innerText = stages[currentStage].desc;
-            
-            const coBtn = document.getElementById("crossingOverBtn");
-            if (coBtn) { const showBtn = (currentStage ===3 && !crossingOverCompleted); coBtn.style.display = showBtn ? "inline-block" : "none"; if (showBtn) coBtn.disabled = false; }
-            
-            const nextBtn = document.getElementById("nextBtn");
-            if (nextBtn) nextBtn.innerText = (currentStage >=15) ? "⟳ Reset & Restart" : "Next Stage ▶";
+            if (_elStageTitle) _elStageTitle.innerText = stages[currentStage].name;
+            if (_elStageDesc)  _elStageDesc.innerText  = stages[currentStage].desc;
+
+            if (_elCoBtn) {
+                const showBtn = (currentStage === 3 && !crossingOverCompleted);
+                _elCoBtn.style.display = showBtn ? "inline-block" : "none";
+                if (showBtn) _elCoBtn.disabled = false;
+            }
+
+            if (_elNextBtn) _elNextBtn.innerText = (currentStage >= 15) ? "⟳ Reset & Restart" : "Next Stage ▶";
             requestAnimationFrame(render);
         }
 
@@ -5679,7 +5715,16 @@
         function nextStage() {
             const ftDiv = document.getElementById('fertToggle');
             if (currentStage <15) {
-                if (currentStage ===3 && !crossingOverCompleted) { alert("Please click 'Initiate Crossing Over' first and let it complete."); return; }
+                if (currentStage ===3 && !crossingOverCompleted) {
+                    if (_elWarn) {
+                        _elWarn.style.display = 'block';
+                        _elWarn.style.animation = 'none';
+                        void _elWarn.offsetWidth;
+                        _elWarn.style.animation = 'fadeWarn 3s ease forwards';
+                        setTimeout(() => { if (_elWarn) _elWarn.style.display = 'none'; }, 3000);
+                    }
+                    return;
+                }
                 currentStage++;
                 if (ftDiv) ftDiv.style.display = currentStage === 15 ? 'flex' : 'none';
                 if (currentStage ===7) assignCellGroups();
@@ -5729,6 +5774,13 @@
             document.getElementById('fertOff')?.classList.add('fert-active');
             document.getElementById('fertOn')?.classList.remove('fert-active');
         }
+
+        // ── Cached DOM refs — queried once instead of every animation frame ──
+        const _elStageTitle = document.getElementById("stageTitle");
+        const _elStageDesc  = document.getElementById("stageDesc");
+        const _elNextBtn    = document.getElementById("nextBtn");
+        const _elCoBtn      = document.getElementById("crossingOverBtn");
+        const _elWarn       = document.getElementById("crossingOverWarn");
 
         document.getElementById("nextBtn").addEventListener("click", nextStage);
         document.getElementById("resetBtn").addEventListener("click", resetSimulation);
