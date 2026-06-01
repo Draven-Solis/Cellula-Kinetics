@@ -785,8 +785,9 @@
                 const condSX = nX + cx2 * radius;
                 const condSY = nY + cy2 * radius;
                 // Cytoplasm landing position (~1.5× radius from nucleus centre)
-                const driftTX = nX + ch.tgt[0] * radius * 1.50;
-                const driftTY = nY + ch.tgt[1] * radius * 1.50;
+                // Multiplier keeps chromosomes well inside cell ellipse (verified for all 4 targets)
+                const driftTX = nX + ch.tgt[0] * radius * 1.15;
+                const driftTY = nY + ch.tgt[1] * radius * 1.15;
 
                 const buildPts = (perpOff) => ch.pts.map((p, i) => {
                     // Condense: lerp 80% toward centromere
