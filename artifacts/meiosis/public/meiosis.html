@@ -3322,29 +3322,42 @@
                 // the cycle clock must never release another egg or reset menses.
                 _ovulationOccurred = true;
                 _fertilizationSuccessful = true;
+                // Freeze the cycle clock NOW (not waiting for winner to arrive)
+                if (_clockFrozenFrac === null && _ovStartTime > 0) {
+                    const _e  = now - _ovStartTime;
+                    const _rw = _e / OV_CYCLE_MS;
+                    const _ci = Math.floor(_rw);
+                    const _cf = _rw - _ci;
+                    _clockFrozenFrac = Math.max(16 / 30, _cf);
+                    _bloodDrops.length = 0;
+                }
             }
 
-            // ── Fertilization sperm path: vagina → cervix → uterus → left tube → ampulla ──
-            // Segment 4 control points are computed from the tube-end toward ax,ay so the
-            // sperm enters the ovum straight instead of looping around it.
-            const seg4x0 = fx - 105, seg4y0 = fy - 36;
-            const seg4c1x = seg4x0 + (ax - seg4x0) * 0.30, seg4c1y = seg4y0 + (ay - seg4y0) * 0.30;
-            const seg4c2x = seg4x0 + (ax - seg4x0) * 0.70, seg4c2y = seg4y0 + (ay - seg4y0) * 0.70;
+            // ── Fertilization sperm path: vagina → cervix → uterus arc → tube (via _tubePath) ──
+            // Side-aware: uterine arc curves toward the correct horn (left or right).
+            // Final quarter (t 0.75→1) delegates to _tubePath so the sperm travels
+            // inside the tube lumen with no U-turn.
+            const _tubeEntryX = _isLeftTube ? fx - 22 : fx + 22;
+            const _uArcCP1X   = _isLeftTube ? fx - 8  : fx + 8;
+            const _uArcCP2X   = _isLeftTube ? fx - 14 : fx + 14;
             function getFPos(t) {
-                const segs = [
-                    [fx,fy+136,  fx,fy+118,  fx,fy+106,  fx,fy+94],
-                    [fx,fy+94,   fx,fy+58,   fx,fy+16,   fx,fy-8],
-                    [fx,fy-8,    fx-8,fy-30, fx-14,fy-44, fx-22,fy-50],
-                    [fx-22,fy-50, fx-50,fy-72, fx-88,fy-62, seg4x0,seg4y0],
-                    [seg4x0,seg4y0, seg4c1x,seg4c1y, seg4c2x,seg4c2y, ax,ay],
-                ];
-                const idx = Math.min(4, Math.floor(t * 5));
-                const s = t * 5 - idx, u = 1 - s;
-                const [x0,y0,x1,y1,x2,y2,x3,y3] = segs[idx];
-                return {
-                    x: u*u*u*x0 + 3*u*u*s*x1 + 3*u*s*s*x2 + s*s*s*x3,
-                    y: u*u*u*y0 + 3*u*u*s*y1 + 3*u*s*s*y2 + s*s*s*y3,
-                };
+                if (t < 0.75) {
+                    const segs = [
+                        [fx,fy+136,  fx,fy+118,  fx,fy+106, fx,fy+94],
+                        [fx,fy+94,   fx,fy+58,   fx,fy+16,  fx,fy-8],
+                        [fx,fy-8, _uArcCP1X,fy-30, _uArcCP2X,fy-44, _tubeEntryX,fy-50],
+                    ];
+                    const idx = Math.min(2, Math.floor(t * 4));
+                    const s = t * 4 - idx, u = 1 - s;
+                    const [x0,y0,x1,y1,x2,y2,x3,y3] = segs[idx];
+                    return {
+                        x: u*u*u*x0 + 3*u*u*s*x1 + 3*u*s*s*x2 + s*s*s*x3,
+                        y: u*u*u*y0 + 3*u*u*s*y1 + 3*u*s*s*y2 + s*s*s*y3,
+                    };
+                }
+                // Final leg: follow _tubePath from uterus entry (t=1) down to ovum (t=0.35)
+                const tubeT = 1.0 - ((t - 0.75) / 0.25) * 0.65; // 1.0→0.35
+                return _tubePath(Math.max(0.35, tubeT));
             }
 
             // ── Phase: sperm_migration ───────────────────────────────────────
@@ -3446,8 +3459,9 @@
             }
 
             // ── Phase: bubble ────────────────────────────────────────────────
+            // Compact in-tube fertilization: all elements sized to fit the tube lumen
             if (_fertState.phase === 'bubble') {
-                const STEP_MS = 1800;
+                const STEP_MS = 1600;
                 if (now - _fertState.bubbleStepStart > STEP_MS) {
                     _fertState.bubbleStep++;
                     _fertState.bubbleStepStart = now;
@@ -3455,134 +3469,94 @@
                 if (_fertState.bubbleStep >= 4) {
                     _fertState.phase = 'zygote';
                     _fertState.zygoStart = now;
-                    // Lock out any further ovulation or menstrual resets
                     _fertilizationSuccessful = true;
                     _ovulationOccurred = true;
                     return;
                 }
                 const bStep = _fertState.bubbleStep;
-                const bT = Math.min(1, (now - _fertState.bubbleStepStart) / STEP_MS);
-
-                // Bubble is drawn at the ampulla location, not canvas center
-                const bx = ax, by = ay, br = 52;
+                const bT    = Math.min(1, (now - _fertState.bubbleStepStart) / STEP_MS);
+                const bx = ax, by = ay;
+                const spDir = _isLeftTube ? 1 : -1; // +1 = uterus is to the right on left tube
 
                 ctx.save();
-                const bg = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-                bg.addColorStop(0,   'rgba(10,5,20,0.82)');
-                bg.addColorStop(0.8, 'rgba(6,2,14,0.72)');
-                bg.addColorStop(1,   'rgba(4,1,10,0.55)');
-                ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2);
-                ctx.fillStyle = bg; ctx.fill();
-                ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(200,160,255,0.30)';
-                ctx.strokeStyle = 'rgba(200,160,255,0.45)'; ctx.lineWidth = 1.5;
-                ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.stroke();
-                ctx.shadowBlur = 0;
-
-                ctx.font = '8px Segoe UI, system-ui';
                 ctx.textAlign = 'center';
-                ctx.fillStyle = 'rgba(200,160,255,0.72)';
-                ctx.fillText('Fertilization', bx, by - br + 12);
-
-                const ovR = 24;
-                const oG = ctx.createRadialGradient(bx - 4, by - 4, 1, bx, by, ovR);
-                oG.addColorStop(0,   'rgba(255,190,215,0.90)');
-                oG.addColorStop(0.55,'rgba(240,130,175,0.85)');
-                oG.addColorStop(1,   'rgba(200,80,130,0.78)');
-                ctx.beginPath(); ctx.arc(bx, by, ovR, 0, Math.PI * 2);
-                ctx.fillStyle = oG; ctx.fill();
-                ctx.strokeStyle = 'rgba(255,215,235,0.80)'; ctx.lineWidth = 1.5; ctx.stroke();
-                ctx.beginPath(); ctx.arc(bx, by, ovR + 5, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(255,230,242,0.38)'; ctx.lineWidth = 3; ctx.stroke();
 
                 if (bStep === 0) {
-                    // Sperm approaches from uterine side of the tube toward the waiting ovum
-                    const spDir = _isLeftTube ? 1 : -1; // +1 = uterus is right of ampulla on left tube
-                    const sx = bx + spDir * ((ovR + 28) * (1 - bT) + 2 * bT);
+                    // Sperm head drifts in from uterine side, stops at ovum surface
+                    const sx = bx + spDir * (14 * (1 - bT) + 4.5 * bT);
+                    const hr = 2.6;
                     ctx.save();
                     ctx.translate(sx, by);
-                    ctx.rotate(spDir * Math.PI / 2); // head faces toward ovum center
-                    const hr0 = 4;
-                    ctx.beginPath(); ctx.ellipse(0, 0, hr0 * 0.7, hr0 * 1.3, 0, 0, Math.PI * 2);
+                    ctx.rotate(spDir * Math.PI / 2); // head faces toward ovum
+                    ctx.beginPath(); ctx.ellipse(0, 0, hr*0.7, hr*1.3, 0, 0, Math.PI*2);
                     ctx.fillStyle = 'rgba(255,232,80,0.96)';
-                    ctx.shadowBlur = 8; ctx.shadowColor = '#ffd000'; ctx.fill();
+                    ctx.shadowBlur = 5; ctx.shadowColor = '#ffd000'; ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // flagellum trails behind (away from ovum)
                     ctx.beginPath();
-                    for (let i = 0; i <= 10; i++) {
-                        const ft = i / 10;
-                        const wx = Math.sin(ft * Math.PI * 2.5 - now * 0.006) * hr0 * 1.8 * (1 - ft * 0.5);
-                        const wy = -(hr0 * 1.3 + ft * hr0 * 5);
+                    for (let i = 0; i <= 8; i++) {
+                        const ft = i / 8;
+                        const wx = Math.sin(ft * Math.PI * 2.5 - now * 0.007) * hr * 1.5 * (1 - ft * 0.4);
+                        const wy = -(hr * 1.3 + ft * hr * 4.2);
                         i === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy);
                     }
-                    ctx.strokeStyle = 'rgba(255,200,50,0.72)'; ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = 'rgba(255,210,50,0.60)'; ctx.lineWidth = 0.8;
                     ctx.lineCap = 'round'; ctx.stroke();
                     ctx.restore();
-                    // "Recombinant sperm" label above the sperm head
-                    const labelAlpha = Math.min(1, bT * 3);
-                    ctx.save();
-                    ctx.globalAlpha = labelAlpha * 0.88;
-                    ctx.font = 'bold 7.5px Segoe UI, system-ui';
-                    ctx.textAlign = 'center';
-                    ctx.fillStyle = 'rgba(255,235,100,0.96)';
-                    ctx.shadowBlur = 5; ctx.shadowColor = '#ffcc00';
-                    ctx.fillText('★ recombinant sperm', sx, by - 18);
-                    ctx.restore();
+                    // small label
+                    ctx.font = 'bold 7px Segoe UI, system-ui';
+                    ctx.fillStyle = `rgba(255,238,110,${Math.min(1, bT * 2.5) * 0.88})`;
+                    ctx.shadowBlur = 3; ctx.shadowColor = '#ffcc00';
+                    ctx.fillText('★ recombinant sperm', sx, by - 13);
                 } else if (bStep === 1) {
-                    const inT = bT;
-                    const sx = bx - ovR * 0.6 * (1 - inT);
-                    ctx.save(); ctx.translate(sx, by);
-                    ctx.beginPath(); ctx.ellipse(0, 0, 4*(1-inT*0.65), 7*(1-inT*0.65), 0, 0, Math.PI*2);
-                    ctx.fillStyle = `rgba(255,232,80,${0.9-inT*0.65})`; ctx.fill();
-                    ctx.restore();
-                    if (inT > 0.45) {
-                        const na = (inT - 0.45) * 1.82;
-                        ctx.save();
-                        ctx.beginPath(); ctx.arc(bx - 7, by, 6 * na, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(100,160,255,${0.75*na})`;
-                        ctx.shadowBlur = 8; ctx.shadowColor = '#6090ff'; ctx.fill();
-                        ctx.strokeStyle = `rgba(160,200,255,${0.7*na})`; ctx.lineWidth = 1; ctx.stroke();
-                        ctx.restore();
-                    }
+                    // Subtle fusion flash at the ovum surface
+                    const flash = Math.sin(bT * Math.PI) * 0.70;
+                    const fg = ctx.createRadialGradient(bx, by, 0, bx, by, 10);
+                    fg.addColorStop(0, `rgba(255,248,190,${flash})`);
+                    fg.addColorStop(0.6, `rgba(255,200,80,${flash * 0.55})`);
+                    fg.addColorStop(1, `rgba(255,140,30,0)`);
+                    ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI*2);
+                    ctx.fillStyle = fg; ctx.fill();
+                    ctx.font = '7.5px Segoe UI, system-ui';
+                    ctx.fillStyle = `rgba(255,210,130,${bT * 0.88})`;
+                    ctx.shadowBlur = 3; ctx.shadowColor = '#ffbb44';
+                    ctx.fillText('Sperm nucleus entering', bx, by - 13);
                 } else if (bStep === 2) {
-                    const mT = bT;
-                    const fpx = bx + 6 - mT * 7, mpx = bx - 11 + mT * 7;
-                    ctx.save();
-                    ctx.beginPath(); ctx.arc(fpx, by, 7, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(255,115,168,0.85)'; ctx.fill();
-                    ctx.strokeStyle = 'rgba(255,185,215,0.78)'; ctx.lineWidth = 1.3; ctx.stroke();
-                    ctx.beginPath(); ctx.arc(mpx, by, 7, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(75,138,255,0.85)'; ctx.fill();
-                    ctx.strokeStyle = 'rgba(148,198,255,0.78)'; ctx.lineWidth = 1.3; ctx.stroke();
-                    ctx.restore();
-                    ctx.font = '7px Segoe UI, system-ui';
-                    ctx.fillStyle = 'rgba(255,200,220,0.88)'; ctx.fillText('♀ (n)', fpx, by + 15);
-                    ctx.fillStyle = 'rgba(150,200,255,0.88)'; ctx.fillText('♂ (n)', mpx, by + 15);
-                    ctx.font = '8px Segoe UI, system-ui';
-                    ctx.fillStyle = 'rgba(200,175,255,0.82)';
-                    ctx.fillText('Haploid Male (n) + Haploid Female (n)', bx, by - br + 28);
+                    // Two pronuclei visible inside the ovum
+                    const pa = Math.min(1, bT * 2);
+                    [[bx - 3, 'rgba(255,182,210,0.92)', '#ff88bb'],
+                     [bx + 3, 'rgba(148,188,255,0.92)', '#6699ff']].forEach(([px, c, sh]) => {
+                        ctx.beginPath(); ctx.arc(px, by, 2.4, 0, Math.PI*2);
+                        ctx.fillStyle = c; ctx.shadowBlur = 5; ctx.shadowColor = sh;
+                        ctx.globalAlpha = pa; ctx.fill();
+                    });
+                    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+                    ctx.font = '7.5px Segoe UI, system-ui';
+                    ctx.fillStyle = `rgba(210,185,255,${pa * 0.90})`;
+                    ctx.fillText('♀(n) + ♂(n) pronuclei', bx, by - 13);
                 } else {
-                    const pulse = 1 + 0.09 * Math.sin(now * 0.006);
-                    ctx.save();
-                    const fG = ctx.createRadialGradient(bx-2,by-2,1,bx,by,11*pulse);
-                    fG.addColorStop(0, 'rgba(215,155,255,0.96)');
-                    fG.addColorStop(0.55,'rgba(155,85,220,0.88)');
-                    fG.addColorStop(1,'rgba(95,35,175,0.78)');
-                    ctx.beginPath(); ctx.arc(bx, by, 11*pulse, 0, Math.PI*2);
-                    ctx.fillStyle = fG; ctx.shadowBlur = 14; ctx.shadowColor = '#a040ff'; ctx.fill();
-                    ctx.restore();
-                    ctx.font = 'bold 9px Segoe UI, system-ui';
-                    ctx.fillStyle = 'rgba(215,185,255,0.96)';
-                    ctx.fillText('Diploid Zygote Formed (2n)', bx, by + 36);
+                    // Zygote pulse — compact, sized to tube lumen
+                    const pulse = 1 + 0.07 * Math.sin(now * 0.006);
+                    const zg = ctx.createRadialGradient(bx-1, by-1, 0, bx, by, 5.5*pulse);
+                    zg.addColorStop(0,   'rgba(228,178,255,0.96)');
+                    zg.addColorStop(0.6, 'rgba(175,100,240,0.90)');
+                    zg.addColorStop(1,   'rgba(108,38,192,0.78)');
+                    ctx.beginPath(); ctx.arc(bx, by, 5.5*pulse, 0, Math.PI*2);
+                    ctx.fillStyle = zg; ctx.shadowBlur = 9; ctx.shadowColor = '#a040ff'; ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold 8px Segoe UI, system-ui';
+                    ctx.fillStyle = 'rgba(212,185,255,0.95)';
+                    ctx.fillText('Diploid Zygote (2n)', bx, by - 13);
                 }
 
+                ctx.shadowBlur = 0;
+                // Step progress dots, offset below the cell
                 for (let i = 0; i < 4; i++) {
-                    ctx.beginPath(); ctx.arc(bx - 18 + i * 12, by + br - 10, 3.5, 0, Math.PI*2);
-                    ctx.fillStyle = i <= bStep ? 'rgba(255,192,70,0.92)' : 'rgba(110,75,35,0.50)';
+                    ctx.globalAlpha = 1;
+                    ctx.beginPath(); ctx.arc(bx - 18 + i * 12, by + 18, 2.4, 0, Math.PI*2);
+                    ctx.fillStyle = i <= bStep ? 'rgba(255,192,70,0.92)' : 'rgba(80,58,25,0.45)';
                     ctx.fill();
                 }
-                const steps = ['Sperm contacts ovum membrane','Sperm nucleus enters ovum',
-                               'Pronuclei move toward each other','Pronuclei fuse'];
-                ctx.font = '8px Segoe UI, system-ui';
-                ctx.fillStyle = 'rgba(228,200,158,0.85)';
-                ctx.fillText(steps[bStep], bx, by + br - 19);
                 ctx.restore();
                 return;
             }
