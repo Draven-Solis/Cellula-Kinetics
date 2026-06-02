@@ -1733,23 +1733,23 @@
                 const startY = panelY + 36;
                 const endY   = panelY + panelH - 36;
 
-                // LEFT column: central/upper structures — sorted top→bottom by anchor Y
+                // LEFT column: central/upper structures + seminiferous tubule — sorted top→bottom by anchor Y
                 const leftLabels = [
-                    { ax: mx,       ay: my - 118, txt: 'Bladder'        },
-                    { ax: mx - 28,  ay: my - 82,  txt: 'Seminal vesicle'},
-                    { ax: mx,       ay: my - 68,  txt: 'Prostate'       },
-                    { ax: mx,       ay: my + 10,  txt: 'Urethra'        },
+                    { ax: mx,       ay: my - 118, txt: 'Bladder'              , hi: false },
+                    { ax: mx - 28,  ay: my - 82,  txt: 'Seminal vesicle'      , hi: false },
+                    { ax: mx,       ay: my - 68,  txt: 'Prostate'             , hi: false },
+                    { ax: mx,       ay: my + 10,  txt: 'Urethra'              , hi: false },
+                    { ax: mx - 28,  ay: my + 125, txt: 'Seminiferous tubule ★', hi: true  },
                 ];
                 // RIGHT column: lateral/scrotal structures — SORTED by anchor Y so
                 // leader lines never cross (label row order matches anchor Y order)
                 const rightLabels = [
-                    { ax: mx + 55,  ay: my - 5,   txt: 'Vas deferens',          hi: false },
-                    { ax: mx + 8,   ay: my + 40,  txt: 'Penis',                 hi: false },
-                    { ax: mx + 8,   ay: my + 70,  txt: 'Glans',                 hi: false },
-                    { ax: mx + 28,  ay: my + 112, txt: 'Seminiferous tubule ★', hi: true  },
-                    { ax: mx + 16,  ay: my + 120, txt: 'Epididymis',            hi: false },
-                    { ax: mx + 40,  ay: my + 132, txt: 'Testis',                hi: false },
-                    { ax: mx + 56,  ay: my + 143, txt: 'Scrotum',               hi: false },
+                    { ax: mx + 55,  ay: my - 5,   txt: 'Vas deferens', hi: false },
+                    { ax: mx + 8,   ay: my + 40,  txt: 'Penis',        hi: false },
+                    { ax: mx + 8,   ay: my + 70,  txt: 'Glans',        hi: false },
+                    { ax: mx + 16,  ay: my + 118, txt: 'Epididymis',   hi: false },
+                    { ax: mx + 40,  ay: my + 132, txt: 'Testis',       hi: false },
+                    { ax: mx + 56,  ay: my + 143, txt: 'Scrotum',      hi: false },
                 ];
 
                 ctx.save();
@@ -1757,18 +1757,20 @@
 
                 // ── Left column ──────────────────────────────────────────────────
                 const stepL = (endY - startY) / (leftLabels.length - 1);
-                leftLabels.forEach(({ ax, ay, txt }, i) => {
+                leftLabels.forEach(({ ax, ay, txt, hi }, i) => {
                     const labelY = startY + i * stepL;
                     ctx.save();
                     ctx.setLineDash([2, 4]);
                     ctx.strokeStyle = dimLine; ctx.lineWidth = 0.8;
                     ctx.beginPath(); ctx.moveTo(colXL + 4, labelY); ctx.lineTo(ax, ay); ctx.stroke();
                     ctx.restore();
-                    ctx.beginPath(); ctx.arc(ax, ay, 2, 0, Math.PI*2);
-                    ctx.fillStyle = dotCol; ctx.fill();
+                    ctx.beginPath(); ctx.arc(ax, ay, hi ? 2.5 : 2, 0, Math.PI*2);
+                    ctx.fillStyle = hi ? colHi : dotCol; ctx.fill();
                     ctx.textAlign = 'right';
-                    ctx.fillStyle = col;
+                    ctx.fillStyle = hi ? colHi : col;
+                    if (hi) { ctx.save(); ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(100,230,255,0.55)'; }
                     ctx.fillText(txt, colXL, labelY + 3.5);
+                    if (hi) ctx.restore();
                 });
 
                 // ── Right column ─────────────────────────────────────────────────
@@ -6371,6 +6373,10 @@
                     return;
                 }
                 currentStage++;
+                if (currentStage === 5) {
+                    longOrient  = Math.random() < 0.5 ? 0 : 1;
+                    shortOrient = Math.random() < 0.5 ? 0 : 1;
+                }
                 if (ftDiv) ftDiv.style.display = currentStage === 15 ? 'flex' : 'none';
                 if (currentStage ===7) assignCellGroups();
                 updateTargetPositions();
@@ -6407,6 +6413,7 @@
             cytokinesisStartTime = 0; metaphaseIAttachStartTime = 0; metaphaseIIAttachStartTime = 0;
             interphaseStartTime = 0; interphaseAnimationActive = false; interphaseTimerRunning = false;
             initializeInterphaseStructures();
+            chromScaleLength = 1.0; chromScaleThickness = 1.0;
             interkinesisActive = false; prophaseIIActive = false; prophaseIICompleted = false;
             anaphase2CustomStartTime = 0; telophase2StartTime = 0;
             interkinesisStartTime = 0; prophaseIIStartTime = 0; cytokinesis2StartTime = 0; gameteMaturationStartTime = 0;
