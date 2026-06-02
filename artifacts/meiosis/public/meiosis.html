@@ -6094,6 +6094,17 @@
                     drawActinCortex(cx, cy, 80, 80, cellAlpha);
                     drawMembrane(cx, cy, 80, 80, cellAlpha);
                 }
+                // ── Recombinant: yellow aura on round-cell outline ────────────
+                if (recomb && cellAlpha > 0.01) {
+                    const pulse = 0.72 + 0.28 * Math.sin(now * 0.0028);
+                    ctx.save();
+                    ctx.globalAlpha = cellAlpha * pulse;
+                    ctx.shadowBlur = 22; ctx.shadowColor = '#ffd732';
+                    ctx.strokeStyle = 'rgba(255,215,50,0.72)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(cx, cy, 83, 0, Math.PI * 2); ctx.stroke();
+                    ctx.restore();
+                }
                 ctx.globalAlpha = morphT;
 
                 // ── BODY AXIS ─────────────────────────────────────────────────
@@ -6160,6 +6171,21 @@
                 ctx.strokeStyle = recomb ? '#1e5870' : '#256882';
                 ctx.lineWidth = 1.8; ctx.stroke();
                 ctx.restore();
+
+                // ── Recombinant: yellow aura on head (sperm phase) ────────────
+                if (recomb && morphT > 0.05) {
+                    const pulse = 0.72 + 0.28 * Math.sin(now * 0.0028);
+                    ctx.save();
+                    ctx.globalAlpha = morphT * pulse;
+                    ctx.translate(hX, hY);
+                    ctx.rotate(HEAD_ANG - Math.PI / 2);
+                    ctx.shadowBlur = 22; ctx.shadowColor = '#ffd732';
+                    ctx.strokeStyle = 'rgba(255,215,50,0.72)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.ellipse(0, 0, HEAD_W + 3, HEAD_H + 3, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
 
                 // ── NECK — where head meets midpiece ──────────────────────────
                 // Neck = head centre + HEAD_H steps in BODY direction (lower-left)
@@ -6283,6 +6309,20 @@
                 // Oocyte body
                 drawCytoplasm(cx, cy, oocyteR, oocyteR, cytAlpha);
                 drawMembrane(cx, cy, oocyteR, oocyteR, cytAlpha);
+
+                // ── Recombinant: yellow aura from body outline ────────────────
+                if (recomb) {
+                    const pulse = 0.72 + 0.28 * Math.sin(now * 0.0028 + 1.0);
+                    const glowA = Math.max(cytAlpha, morphT) * pulse;
+                    const glowR = oocyteR + zonaW * 0.5 + 5;
+                    ctx.save();
+                    ctx.globalAlpha = glowA;
+                    ctx.shadowBlur = 24; ctx.shadowColor = '#ffd732';
+                    ctx.strokeStyle = 'rgba(255,215,50,0.72)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, Math.PI * 2); ctx.stroke();
+                    ctx.restore();
+                }
 
                 if (morphT > 0.05) {
                     ctx.save();
