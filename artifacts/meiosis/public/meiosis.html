@@ -5656,7 +5656,11 @@
         //  Top-right: Mother + maternal chromosomes (orange R, red Y)
         // ══════════════════════════════════════════════════════════════════════
         function drawParentCorners() {
-            const PAD = 8, PW = 96, PH = 110;
+            const PAD = 8, PW = 112, PH = 152;
+            const STROKE = 'rgba(238,252,255,0.96)';
+            const GLOW   = 'rgba(90,185,255,0.72)';
+            const LW     = 2.1;
+            const BLUR   = 12;
 
             // Rounded-rect path helper
             function _rr(x, y, w, h, r) {
@@ -5669,120 +5673,169 @@
                 ctx.closePath();
             }
 
-            // Mini chromosome pair (two pill arms + centromere gap) at absolute canvas (cx, cy)
-            function _chrom(cx, cy, col, h) {
-                const w = 5, gap = 1.5, halfH = h / 2, r = w / 2;
+            // Atom icon centred at (cx, cy), orbit radius orR
+            function _atom(cx, cy, orR) {
                 ctx.save();
-                ctx.fillStyle = col; ctx.shadowBlur = 5; ctx.shadowColor = col;
-                _rr(cx - r, cy - halfH, w, halfH - gap, r); ctx.fill();
-                _rr(cx - r, cy + gap,   w, halfH - gap, r); ctx.fill();
+                ctx.strokeStyle = STROKE;
+                ctx.lineWidth   = 1.5;
+                ctx.shadowBlur  = BLUR;
+                ctx.shadowColor = GLOW;
+                // Nucleus dot
+                ctx.beginPath(); ctx.arc(cx, cy, orR * 0.19, 0, Math.PI * 2); ctx.stroke();
+                // Three orbital ellipses at 0°, 60°, 120°
+                for (let a = 0; a < 3; a++) {
+                    ctx.save();
+                    ctx.translate(cx, cy);
+                    ctx.rotate(a * Math.PI / 3);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, orR, orR * 0.36, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+
+            // DNA double-helix centred at (cx, cy) spanning height h
+            function _dna(cx, cy, h) {
+                ctx.save();
+                ctx.strokeStyle = STROKE;
+                ctx.lineWidth   = 1.6;
+                ctx.lineCap     = 'round';
+                ctx.shadowBlur  = BLUR;
+                ctx.shadowColor = GLOW;
+                const amp   = h * 0.27;   // horizontal amplitude
+                const turns = 2.5;        // full helical turns
+                const steps = 40;
+                // Two strands (phase-offset by π)
+                for (let s = 0; s < 2; s++) {
+                    const phase = s * Math.PI;
+                    ctx.beginPath();
+                    for (let i = 0; i <= steps; i++) {
+                        const t  = i / steps;
+                        const py = cy - h / 2 + t * h;
+                        const px = cx + Math.sin(t * Math.PI * 2 * turns + phase) * amp;
+                        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+                }
+                // Cross-rungs
+                const rungN = 7;
+                for (let i = 1; i < rungN; i++) {
+                    const t  = i / rungN;
+                    const py = cy - h / 2 + t * h;
+                    const px1 = cx + Math.sin(t * Math.PI * 2 * turns) * amp;
+                    const px2 = cx + Math.sin(t * Math.PI * 2 * turns + Math.PI) * amp;
+                    ctx.save();
+                    ctx.globalAlpha = 0.55;
+                    ctx.beginPath(); ctx.moveTo(px1, py); ctx.lineTo(px2, py); ctx.stroke();
+                    ctx.restore();
+                }
                 ctx.restore();
             }
 
             function _panel(bx, by, sex) {
-                const fc = bx + PW / 2;  // figure centre x on canvas
+                const fc = bx + PW / 2;
 
-                // Panel background + border
+                // ── Panel background ──────────────────────────────────────────────────
                 ctx.save();
-                ctx.fillStyle   = sex === 'M' ? 'rgba(5,13,36,0.88)'  : 'rgba(32,7,15,0.88)';
-                ctx.strokeStyle = sex === 'M' ? 'rgba(41,121,255,0.52)': 'rgba(255,140,0,0.52)';
-                ctx.lineWidth = 1;
-                _rr(bx, by, PW, PH, 9); ctx.fill();
-                _rr(bx, by, PW, PH, 9); ctx.stroke();
+                ctx.fillStyle = 'rgba(3,10,32,0.93)';
+                _rr(bx, by, PW, PH, 11); ctx.fill();
+
+                // Subtle grid overlay
+                ctx.save();
+                _rr(bx, by, PW, PH, 11); ctx.clip();
+                ctx.strokeStyle = 'rgba(35,95,200,0.17)';
+                ctx.lineWidth   = 0.5;
+                const gs = 13;
+                for (let gx = bx + (gs - ((bx % gs + gs) % gs)); gx <= bx + PW; gx += gs) {
+                    ctx.beginPath(); ctx.moveTo(gx, by); ctx.lineTo(gx, by + PH); ctx.stroke();
+                }
+                for (let gy = by + (gs - ((by % gs + gs) % gs)); gy <= by + PH; gy += gs) {
+                    ctx.beginPath(); ctx.moveTo(bx, gy); ctx.lineTo(bx + PW, gy); ctx.stroke();
+                }
                 ctx.restore();
 
-                // ── Figure — restroom-sign style: all parts are stroked rounded rects ──
+                // Panel border with glow
+                ctx.strokeStyle = 'rgba(70,155,255,0.58)';
+                ctx.lineWidth   = 1.3;
+                ctx.shadowBlur  = 9;
+                ctx.shadowColor = 'rgba(50,140,255,0.50)';
+                _rr(bx, by, PW, PH, 11); ctx.stroke();
+                ctx.restore();
+
+                // ── Figure ───────────────────────────────────────────────────────────
                 ctx.save();
-                ctx.strokeStyle = 'rgba(235,248,255,0.96)';
-                ctx.lineWidth   = 2.4;
+                ctx.strokeStyle = STROKE;
+                ctx.lineWidth   = LW;
                 ctx.lineCap     = 'round';
                 ctx.lineJoin    = 'round';
-                ctx.shadowBlur  = 9;
-                ctx.shadowColor = 'rgba(190,220,255,0.48)';
+                ctx.shadowBlur  = BLUR;
+                ctx.shadowColor = GLOW;
 
-                // HEAD (circle)
-                ctx.beginPath(); ctx.arc(fc, by + 15, 9, 0, Math.PI * 2); ctx.stroke();
+                // HEAD
+                const headCY = by + 20;
+                ctx.beginPath(); ctx.arc(fc, headCY, 11, 0, Math.PI * 2); ctx.stroke();
 
                 if (sex === 'M') {
-                    // ── MALE: rectangular torso + capsule arms + H-legs ──────────────
+                    // ── MALE: rectangular torso + capsule arms + H-split legs ─────────
+                    const torsoTop = headCY + 14;
+                    const torsoW   = 40, torsoH = 37;
                     // Torso
-                    _rr(fc - 16, by + 27, 32, 30, 6); ctx.stroke();
-                    // Left arm (capsule, flush with torso left with a ~2px visual gap from line widths)
-                    _rr(fc - 27, by + 30, 9.5, 23, 4.7); ctx.stroke();
+                    _rr(fc - torsoW / 2, torsoTop, torsoW, torsoH, 8); ctx.stroke();
+                    // Left arm
+                    _rr(fc - torsoW / 2 - 12, torsoTop + 4, 11, 28, 5.5); ctx.stroke();
                     // Right arm
-                    _rr(fc + 17.5, by + 30, 9.5, 23, 4.7); ctx.stroke();
-                    // Crotch bar (horizontal line inside torso bottom)
+                    _rr(fc + torsoW / 2 + 1,  torsoTop + 4, 11, 28, 5.5); ctx.stroke();
+                    // Crotch divider bar
+                    const crotchY = torsoTop + torsoH;
                     ctx.beginPath();
-                    ctx.moveTo(fc - 16, by + 57); ctx.lineTo(fc + 16, by + 57);
+                    ctx.moveTo(fc - torsoW / 2, crotchY);
+                    ctx.lineTo(fc + torsoW / 2, crotchY);
                     ctx.stroke();
-                    // Left leg (capsule below crotch)
-                    _rr(fc - 14, by + 57, 11, 23, 5.5); ctx.stroke();
-                    // Right leg
-                    _rr(fc + 3,  by + 57, 11, 23, 5.5); ctx.stroke();
+                    // Legs
+                    _rr(fc - torsoW / 2,      crotchY, 17, 28, 8); ctx.stroke();
+                    _rr(fc + torsoW / 2 - 17, crotchY, 17, 28, 8); ctx.stroke();
 
-                    // Dark inner fill of torso so chromosome colors pop
-                    ctx.save();
-                    ctx.fillStyle = 'rgba(2,8,26,0.65)';
-                    _rr(fc - 14.5, by + 28.5, 29, 27, 4); ctx.fill();
-                    ctx.restore();
-
-                    // Paternal chromosomes inside torso
-                    const cy = by + 42;
-                    _chrom(fc - 7, cy, '#2979FF', 18); // long  (r)
-                    _chrom(fc + 7, cy, '#00BCD4', 11); // short (y)
-                    // Gene labels
-                    ctx.save();
-                    ctx.font = 'bold 8px Segoe UI, system-ui'; ctx.textAlign = 'center'; ctx.shadowBlur = 3;
-                    ctx.fillStyle = '#2979FF'; ctx.shadowColor = '#2979FF'; ctx.fillText('r', fc - 7, cy + 18);
-                    ctx.fillStyle = '#00BCD4'; ctx.shadowColor = '#00BCD4'; ctx.fillText('y', fc + 7, cy + 14);
-                    ctx.restore();
+                    // Atom icon centred in torso
+                    _atom(fc, torsoTop + torsoH / 2, 12);
 
                 } else {
-                    // ── FEMALE: upper torso + capsule arms + trapezoid dress + legs ──
-                    // Upper torso (same width as male)
-                    _rr(fc - 16, by + 27, 32, 20, 6); ctx.stroke();
-                    // Left arm
-                    _rr(fc - 27, by + 30, 9.5, 17, 4.7); ctx.stroke();
-                    // Right arm
-                    _rr(fc + 17.5, by + 30, 9.5, 17, 4.7); ctx.stroke();
-                    // Dress / skirt (trapezoid — wider at bottom)
+                    // ── FEMALE: torso + wide capsule arms + flared dress + legs ───────
+                    const torsoTop = headCY + 14;
+                    const torsoW   = 40, torsoH = 24;
+                    // Upper torso
+                    _rr(fc - torsoW / 2, torsoTop, torsoW, torsoH, 8); ctx.stroke();
+                    // Arms (shorter, angled outward via positioning)
+                    _rr(fc - torsoW / 2 - 12, torsoTop + 4, 11, 22, 5.5); ctx.stroke();
+                    _rr(fc + torsoW / 2 + 1,  torsoTop + 4, 11, 22, 5.5); ctx.stroke();
+                    // Dress / skirt trapezoid
+                    const dressTop = torsoTop + torsoH;
+                    const dressBot = dressTop + 36;
+                    const dressFlare = 15;
                     ctx.beginPath();
-                    ctx.moveTo(fc - 16, by + 45);
-                    ctx.lineTo(fc - 25, by + 70);
-                    ctx.lineTo(fc + 25, by + 70);
-                    ctx.lineTo(fc + 16, by + 45);
+                    ctx.moveTo(fc - torsoW / 2,              dressTop);
+                    ctx.lineTo(fc - torsoW / 2 - dressFlare, dressBot);
+                    ctx.lineTo(fc + torsoW / 2 + dressFlare, dressBot);
+                    ctx.lineTo(fc + torsoW / 2,              dressTop);
                     ctx.closePath(); ctx.stroke();
-                    // Left leg
-                    _rr(fc - 13, by + 70, 10.5, 18, 5.2); ctx.stroke();
-                    // Right leg
-                    _rr(fc + 2.5, by + 70, 10.5, 18, 5.2); ctx.stroke();
+                    // Legs
+                    _rr(fc - 15, dressBot, 13, 24, 6.5); ctx.stroke();
+                    _rr(fc + 2,  dressBot, 13, 24, 6.5); ctx.stroke();
 
-                    // Dark inner fill of upper torso
-                    ctx.save();
-                    ctx.fillStyle = 'rgba(26,4,12,0.65)';
-                    _rr(fc - 14.5, by + 28.5, 29, 17, 4); ctx.fill();
-                    ctx.restore();
-
-                    // Maternal chromosomes inside upper torso
-                    const cy = by + 37;
-                    _chrom(fc - 7, cy, '#FF8C00', 16); // long  (R)
-                    _chrom(fc + 7, cy, '#E53935', 10); // short (Y)
-                    // Gene labels
-                    ctx.save();
-                    ctx.font = 'bold 8px Segoe UI, system-ui'; ctx.textAlign = 'center'; ctx.shadowBlur = 3;
-                    ctx.fillStyle = '#FF8C00'; ctx.shadowColor = '#FF8C00'; ctx.fillText('R', fc - 7, cy + 16);
-                    ctx.fillStyle = '#E53935'; ctx.shadowColor = '#E53935'; ctx.fillText('Y', fc + 7, cy + 13);
-                    ctx.restore();
+                    // DNA helix centred in dress
+                    _dna(fc, dressTop + 18, 32);
                 }
 
-                ctx.restore(); // end figure save
+                ctx.restore();
 
-                // Caption
+                // ── Label ─────────────────────────────────────────────────────────────
                 ctx.save();
-                ctx.font = '8.5px Segoe UI, system-ui';
-                ctx.fillStyle = sex === 'M' ? 'rgba(148,192,255,0.82)' : 'rgba(255,198,155,0.82)';
-                ctx.textAlign = 'center';
-                ctx.fillText(sex === 'M' ? 'Father' : 'Mother', fc, by + PH - 6);
+                ctx.font        = 'bold 9.5px "Segoe UI", system-ui, sans-serif';
+                ctx.fillStyle   = 'rgba(210,240,255,0.92)';
+                ctx.textAlign   = 'center';
+                ctx.shadowBlur  = 7;
+                ctx.shadowColor = GLOW;
+                ctx.fillText(sex === 'M' ? 'MALE' : 'FEMALE', fc, by + PH - 8);
                 ctx.restore();
             }
 
