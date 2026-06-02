@@ -1342,6 +1342,10 @@
         let _fertState = null;    // null until fertilization animation starts
         let _ampullaX = 0, _ampullaY = 0;  // where ovum pauses in ampulla
 
+        // ── Cycle clock freeze (set when sperm meets egg in fertilization mode) ─
+        // When non-null, _drawOvulationCycle uses this frac instead of real time.
+        let _clockFrozenFrac = null;
+
         function initSpermSystems() {
             if (_spermInitDone) return;
             _spermInitDone = true;
@@ -2456,12 +2460,22 @@
             // ── Initialise start time ─────────────────────────────────────────
             if (_ovStartTime === 0) _ovStartTime = now;
             const elapsed  = now - _ovStartTime;
-            const cycleRaw = elapsed / OV_CYCLE_MS;             // 0, 1, 2, ...
-            const cycleIdx = Math.floor(cycleRaw);              // completed cycles
-            const cycleFrac = cycleRaw - cycleIdx;              // 0→1 within this cycle
 
-            // Track completed cycles for alternating ovary
-            if (cycleIdx > _ovCycleCount) {
+            // ── Use frozen frac when sperm has met egg, otherwise compute live ─
+            let cycleRaw, cycleIdx, cycleFrac;
+            if (_clockFrozenFrac !== null) {
+                // Clock is permanently frozen at luteal phase after fertilization.
+                cycleFrac = _clockFrozenFrac;
+                cycleIdx  = _ovCycleCount;
+                cycleRaw  = cycleIdx + cycleFrac;
+            } else {
+                cycleRaw  = elapsed / OV_CYCLE_MS;             // 0, 1, 2, ...
+                cycleIdx  = Math.floor(cycleRaw);              // completed cycles
+                cycleFrac = cycleRaw - cycleIdx;               // 0→1 within this cycle
+            }
+
+            // Track completed cycles for alternating ovary (only when clock is live)
+            if (_clockFrozenFrac === null && cycleIdx > _ovCycleCount) {
                 _ovCycleCount = cycleIdx;
                 // Kill any leftover ovum from prior cycle
                 _ovum = null;
@@ -3509,6 +3523,18 @@
                 }
 
                 if (winner.progress >= 1.0) {
+                    // ── Sperm meets egg: freeze the cycle clock at luteal phase ─
+                    if (_clockFrozenFrac === null && _ovStartTime > 0) {
+                        const _e  = now - _ovStartTime;
+                        const _rw = _e / OV_CYCLE_MS;
+                        const _ci = Math.floor(_rw);
+                        const _cf = _rw - _ci;
+                        // Clamp to luteal (day 16+, frac >= 16/30) so it always
+                        // shows Luteal — never Ovulation or an earlier phase.
+                        _clockFrozenFrac = Math.max(16 / 30, _cf);
+                        // Clear any remaining blood drops so menses never resumes
+                        _bloodDrops.length = 0;
+                    }
                     _fertState.phase = 'bubble';
                     _fertState.bubbleStep = 0;
                     _fertState.bubbleStepStart = now;
@@ -6444,6 +6470,7 @@
             _ovulationOccurred = false; _fertilizationSuccessful = false;
             _bloodDrops.length = 0; _lastDropSpawn = 0;
             _fertilizationMode = false; _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            _clockFrozenFrac = null;
             const ftDiv = document.getElementById('fertToggle');
             if (ftDiv) ftDiv.style.display = 'none';
             document.getElementById('fertOff')?.classList.add('fert-active');
@@ -6464,6 +6491,7 @@
         document.getElementById("fertOff").addEventListener("click", () => {
             _fertilizationMode = false;
             _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            _clockFrozenFrac = null;
             _ovum = null;  // clear paused ovum; new one will spawn next ovulation
             document.getElementById('fertOff').classList.add('fert-active');
             document.getElementById('fertOn').classList.remove('fert-active');
@@ -6471,10 +6499,12 @@
         document.getElementById("fertOn").addEventListener("click", () => {
             _fertilizationMode = true;
             _fertState = null; _ampullaX = 0; _ampullaY = 0;
+            _clockFrozenFrac = null;
             _ovum = null; _ovStartTime = 0; // restart ovulation cycle
             _ovCycleCount = 0;            // reset counter so cycle detection starts clean
             _ovulationOccurred = false;   // allow exactly one ovulation in the new cycle
             _fertilizationSuccessful = false; // clear lock so fertilization can run fresh
+            _bloodDrops.length = 0; _lastDropSpawn = 0;
             document.getElementById('fertOn').classList.add('fert-active');
             document.getElementById('fertOff').classList.remove('fert-active');
         });
