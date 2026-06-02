@@ -2972,7 +2972,7 @@
 
                     // ── SHEDDING PARTICLES during menses (days 1–5) ────────────
                     // Small lining flakes drift downward as endometrium sheds
-                    if (dayNow <= 5 && eT < 0.92) {
+                    if (dayNow <= 5 && eT < 0.92 && !_fertilizationMode) {
                         const shedAlpha = (1 - eT) * 0.65;
                         const now2 = now * 0.001;
                         for (let si = 0; si < 5; si++) {
@@ -3206,10 +3206,10 @@
                 if (frac >= 1 || d.y > fy + 200) _bloodDrops.splice(i, 1);
             }
 
-            // Draw blood droplets — rounded droplet shape with tear tail
+            // Draw blood droplets — skip entirely in fertilization mode to avoid overlap
             ctx.save();
             for (const d of _bloodDrops) {
-                if (d.alpha <= 0) continue;
+                if (d.alpha <= 0 || _fertilizationMode) continue;
                 ctx.save();
                 ctx.globalAlpha = d.alpha;
                 ctx.translate(d.x, d.y);
@@ -3333,31 +3333,59 @@
                 }
             }
 
-            // ── Fertilization sperm path: vagina → cervix → uterus arc → tube (via _tubePath) ──
-            // Side-aware: uterine arc curves toward the correct horn (left or right).
-            // Final quarter (t 0.75→1) delegates to _tubePath so the sperm travels
-            // inside the tube lumen with no U-turn.
+            // ── Fertilization sperm path (6 segments, side-aware) ───────────────
+            // 0  vagina  1  cervix/uterus  2  uterine arc→horn
+            // 3  tube bezier 1 (horn→arch junction, follows drawn tube exactly)
+            // 4  tube bezier 2 extended (arch junction→briefly past fimbriae opening)
+            // 5  re-entry: curve back from fimbriae exit → ovum at ampulla junction
             const _tubeEntryX = _isLeftTube ? fx - 22 : fx + 22;
             const _uArcCP1X   = _isLeftTube ? fx - 8  : fx + 8;
             const _uArcCP2X   = _isLeftTube ? fx - 14 : fx + 14;
+            const _tsx         = _isLeftTube ? -1 : 1;          // side sign for x offsets
+            // Fimbriae exit point: ~12px past the tube opening in its outward tangent dir
+            const _exitX = _isLeftTube ? fx - 91 : fx + 91;
+            const _exitY = fy + 40;
+
             function getFPos(t) {
-                if (t < 0.75) {
-                    const segs = [
-                        [fx,fy+136,  fx,fy+118,  fx,fy+106, fx,fy+94],
-                        [fx,fy+94,   fx,fy+58,   fx,fy+16,  fx,fy-8],
-                        [fx,fy-8, _uArcCP1X,fy-30, _uArcCP2X,fy-44, _tubeEntryX,fy-50],
+                const s6  = t * 6;
+                const idx = Math.min(5, Math.floor(s6));
+                const s   = s6 - idx, u = 1 - s;
+
+                // Segs 0–2: vagina → cervix/uterus → uterine arc to tube horn
+                if (idx < 3) {
+                    const earlySegs = [
+                        [fx,fy+136,  fx,fy+118,  fx,fy+106,         fx,fy+94],
+                        [fx,fy+94,   fx,fy+58,   fx,fy+16,           fx,fy-8],
+                        [fx,fy-8,  _uArcCP1X,fy-30, _uArcCP2X,fy-44, _tubeEntryX,fy-50],
                     ];
-                    const idx = Math.min(2, Math.floor(t * 4));
-                    const s = t * 4 - idx, u = 1 - s;
-                    const [x0,y0,x1,y1,x2,y2,x3,y3] = segs[idx];
+                    const [x0,y0,x1,y1,x2,y2,x3,y3] = earlySegs[idx];
                     return {
                         x: u*u*u*x0 + 3*u*u*s*x1 + 3*u*s*s*x2 + s*s*s*x3,
                         y: u*u*u*y0 + 3*u*u*s*y1 + 3*u*s*s*y2 + s*s*s*y3,
                     };
                 }
-                // Final leg: follow _tubePath from uterus entry (t=1) down to ovum (t=0.35)
-                const tubeT = 1.0 - ((t - 0.75) / 0.25) * 0.65; // 1.0→0.35
-                return _tubePath(Math.max(0.35, tubeT));
+
+                // Seg 3: first tube bezier — uterine horn → arch junction (matches drawn tube)
+                if (idx === 3) {
+                    return {
+                        x: u*u*u*(fx+_tsx*22) + 3*u*u*s*(fx+_tsx*50) + 3*u*s*s*(fx+_tsx*88) + s*s*s*(fx+_tsx*105),
+                        y: u*u*u*(fy-50) + 3*u*u*s*(fy-72) + 3*u*s*s*(fy-62) + s*s*s*(fy-36),
+                    };
+                }
+
+                // Seg 4: second tube bezier extended — arch junction → briefly past fimbriae
+                if (idx === 4) {
+                    return {
+                        x: u*u*u*(fx+_tsx*105) + 3*u*u*s*(fx+_tsx*118) + 3*u*s*s*(fx+_tsx*110) + s*s*s*_exitX,
+                        y: u*u*u*(fy-36) + 3*u*u*s*(fy-14) + 3*u*s*s*(fy+22) + s*s*s*_exitY,
+                    };
+                }
+
+                // Seg 5: re-entry — loop back from fimbriae exit into tube lumen → ovum
+                return {
+                    x: u*u*u*_exitX + 3*u*u*s*(fx+_tsx*95) + 3*u*s*s*(fx+_tsx*88) + s*s*s*ax,
+                    y: u*u*u*_exitY + 3*u*u*s*(fy+20) + 3*u*s*s*(fy-32) + s*s*s*ay,
+                };
             }
 
             // ── Phase: sperm_migration ───────────────────────────────────────
@@ -3448,6 +3476,27 @@
                     _fertState.bubbleStepStart = now;
                 }
 
+                // ── Ovum visibility indicator — pulsing ring drawn over sperm trails ──
+                if (ax > 0 && ay > 0) {
+                    const oPulse = 1 + 0.14 * Math.sin(now * 0.0045);
+                    ctx.save();
+                    // Outer attention ring
+                    ctx.beginPath(); ctx.arc(ax, ay, 22 * oPulse, 0, Math.PI*2);
+                    ctx.strokeStyle = 'rgba(255,145,185,0.55)';
+                    ctx.lineWidth = 1.5; ctx.shadowBlur = 8; ctx.shadowColor = 'rgba(255,110,165,0.45)';
+                    ctx.stroke(); ctx.shadowBlur = 0;
+                    // Label — placed above the ring, centered, so it doesn't cross anatomy callouts
+                    ctx.font = 'bold 7px Segoe UI, system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = 'rgba(255,175,205,0.92)';
+                    ctx.fillText('Ovum', ax, ay - 28);
+                    ctx.font = '6.5px Segoe UI, system-ui';
+                    ctx.fillStyle = 'rgba(210,148,175,0.78)';
+                    ctx.fillText('Ampulla-isthmus junction', ax, ay - 19);
+                    ctx.restore();
+                }
+
+                // ── Sperm count status ──
                 ctx.save();
                 ctx.font = 'bold 9px Segoe UI, system-ui';
                 ctx.textAlign = 'center';
