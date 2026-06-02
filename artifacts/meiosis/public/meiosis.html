@@ -3248,6 +3248,37 @@
             if (!_fertilizationMode || !_ampullaX) return;
             const ax = _ampullaX, ay = _ampullaY;
 
+            // ── Shared geometry ───────────────────────────────────────────────
+            // Is the fertilized tube on the left or right?
+            const _isLeftTube = ax < fx;
+            // Implantation target: upper uterine fundus wall (inside uterus)
+            const _implantX = fx;
+            const _implantY = fy - 38;
+
+            // Mirror of getOvumPathL/R — exact same bezier control points as the
+            // drawn fallopian tube, so the morula travels inside the lumen.
+            function _tubePath(t) {
+                if (t <= 0.5) {
+                    const s = t * 2, u = 1 - s;
+                    const x0 = _isLeftTube ? fx-98  : fx+98;
+                    const c1 = _isLeftTube ? fx-118 : fx+118;
+                    const c2 = _isLeftTube ? fx-88  : fx+88;
+                    const x1 = _isLeftTube ? fx-50  : fx+50;
+                    return {
+                        x: u*u*u*x0 + 3*u*u*s*c1 + 3*u*s*s*c2 + s*s*s*x1,
+                        y: u*u*u*(fy+28) + 3*u*u*s*(fy-14) + 3*u*s*s*(fy-62) + s*s*s*(fy-72),
+                    };
+                } else {
+                    const s = (t-0.5)*2, u = 1-s;
+                    const x0 = _isLeftTube ? fx-50 : fx+50;
+                    const ex  = _isLeftTube ? fx-22 : fx+22;
+                    return {
+                        x: u*u*u*x0 + 3*u*u*s*ex + 3*u*s*s*ex + s*s*s*ex,
+                        y: u*u*u*(fy-72) + 3*u*u*s*(fy-68) + 3*u*s*s*(fy-60) + s*s*s*(fy-50),
+                    };
+                }
+            }
+
             // ── Init state ───────────────────────────────────────────────────
             if (!_fertState) {
                 _fertState = {
@@ -3630,12 +3661,31 @@
 
             // ── Phase: morula ────────────────────────────────────────────────
             if (_fertState.phase === 'morula') {
-                const MOR_MS = 5500;
+                const MOR_MS = 6000;
                 const morT = Math.min(1, (now - _fertState.morStart) / MOR_MS);
-                const u = 1 - morT;
-                // Bezier from ampulla toward uterus cavity (fx, fy)
-                const mx3 = u*u*u*ax + 3*u*u*morT*(fx-60) + 3*u*morT*morT*(fx-22) + morT*morT*morT*fx;
-                const my3 = u*u*u*ay + 3*u*u*morT*(fy-52) + 3*u*morT*morT*(fy-50) + morT*morT*morT*fy;
+
+                // Phase 1 (morT 0→0.82): follow tube from pause point (t=0.22) to
+                //   uterus entry (t=1.0) — stays fully inside the fallopian lumen.
+                // Phase 2 (morT 0.82→1.0): short quadratic from tube exit into the
+                //   uterine fundus wall — the implantation site.
+                const TUBE_END = 0.82;
+                const entryX = _isLeftTube ? fx-22 : fx+22;
+                const entryY = fy - 50;
+
+                let mx3, my3;
+                if (morT <= TUBE_END) {
+                    const tubeFrac = 0.22 + (morT / TUBE_END) * 0.78; // 0.22→1.0
+                    const pos = _tubePath(tubeFrac);
+                    mx3 = pos.x; my3 = pos.y;
+                } else {
+                    // Quadratic arc from tube exit into uterine fundus
+                    const et = (morT - TUBE_END) / (1 - TUBE_END); // 0→1
+                    const eu = 1 - et;
+                    const midX = fx + (_isLeftTube ? -8 : 8);
+                    const midY = fy - 46;
+                    mx3 = eu*eu*entryX + 2*eu*et*midX + et*et*_implantX;
+                    my3 = eu*eu*entryY + 2*eu*et*midY + et*et*_implantY;
+                }
 
                 ctx.save();
                 // Morula scaled to fit inside fallopian tube (inner r ≈ 6px)
@@ -3680,28 +3730,32 @@
             // ── Phase: implantation ──────────────────────────────────────────
             if (_fertState.phase === 'implantation') {
                 const pulse = 1 + 0.06 * Math.sin(now * 0.003);
+                const ix = _implantX, iy = _implantY;
                 ctx.save();
-                const glG = ctx.createRadialGradient(fx, fy, 0, fx, fy, 24 * pulse);
+                // Glow halo at implantation site (uterine fundus wall)
+                const glG = ctx.createRadialGradient(ix, iy, 0, ix, iy, 24 * pulse);
                 glG.addColorStop(0,'rgba(188,148,255,0.58)');
                 glG.addColorStop(1,'rgba(118,58,202,0)');
-                ctx.beginPath(); ctx.arc(fx, fy, 24 * pulse, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(ix, iy, 24 * pulse, 0, Math.PI*2);
                 ctx.fillStyle = glG; ctx.fill();
-                ctx.beginPath(); ctx.arc(fx, fy, 20 * pulse, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(ix, iy, 20 * pulse, 0, Math.PI*2);
                 ctx.strokeStyle = 'rgba(208,178,255,0.65)'; ctx.lineWidth = 2; ctx.stroke();
+                // Blastomere ring
                 for (let i = 0; i < 9; i++) {
                     const ang = (i / 9) * Math.PI * 2, r = 13;
-                    ctx.beginPath(); ctx.arc(fx + Math.cos(ang)*r, fy + Math.sin(ang)*r, 4, 0, Math.PI*2);
+                    ctx.beginPath(); ctx.arc(ix + Math.cos(ang)*r, iy + Math.sin(ang)*r, 4, 0, Math.PI*2);
                     ctx.fillStyle = 'rgba(212,172,255,0.84)'; ctx.fill();
                     ctx.strokeStyle = 'rgba(148,88,215,0.55)'; ctx.lineWidth = 0.6; ctx.stroke();
                 }
+                // Labels — positioned above the implantation site
                 ctx.font = 'bold 9.5px Segoe UI, system-ui';
                 ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(158,222,138,0.96)';
                 ctx.shadowBlur = 9; ctx.shadowColor = 'rgba(100,200,80,0.42)';
-                ctx.fillText('Uterus Prepared for Implantation', fx, fy - 34);
+                ctx.fillText('Implantation in Uterine Fundus', ix, iy - 32);
                 ctx.shadowBlur = 0;
                 ctx.font = '8.5px Segoe UI, system-ui';
                 ctx.fillStyle = 'rgba(198,158,255,0.84)';
-                ctx.fillText('Morula arrived  •  Endometrium maintained', fx, fy - 22);
+                ctx.fillText('Morula arrived  •  Endometrium maintained', ix, iy - 20);
                 ctx.restore();
                 // Fertilization sequence complete — remain on implantation display.
                 // Do NOT loop back to sperm_migration; ovulationOccurred and
