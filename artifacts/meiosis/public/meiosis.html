@@ -1674,8 +1674,8 @@
                 const dimLine   = 'rgba(95,200,224,0.48)';
                 const dotCol    = 'rgba(95,200,224,0.70)';
                 // Column x positions (inside the male panel which spans W*0.01 → W*0.01+panelW)
-                const colXL = W * 0.01 + 76;          // left column — text right-aligned here
-                const colXR = W * 0.01 + panelW - 68; // right column — text left-aligned here
+                const colXL = W * 0.01 + 76;           // left column  — text right-aligned here
+                const colXR = W * 0.01 + panelW - 108; // right column — text left-aligned here (shifted in to prevent overflow)
                 const startY = panelY + 32;
                 const endY   = panelY + panelH - 32;
 
@@ -2098,44 +2098,74 @@
             ctx.textAlign = 'center';
             ctx.fillText('Female Reproductive System', fx, panelY + panelH - 8);
 
-            // ── Neat side-column labels with dotted leader lines (left side) ──
+            // ── Two-column anatomy labels (left column + right column) ───────────
             {
-                const lx = W * 0.53;  // left edge of female panel
-                const col  = '#e07090';
-                const dim  = 'rgba(224,112,144,0.55)';
-                const fLabels = [
-                    [fx,          fy - 70,  'Fundus (uterus)'],
-                    [fx - 105,    fy - 36,  'Fallopian tube'],
-                    [fx - 98,     fy + 28,  'Fimbriae'],
-                    [fx - 100,    fy + 46,  'Ovary (L)'],
-                    [fx + 100,    fy + 46,  'Ovary (R)'],
-                    [fx,          fy + 28,  'Uterine wall'],
-                    [fx,          fy + 84,  'Cervix'],
-                    [fx,          fy + 108, 'Vaginal canal'],
+                const col    = '#e07090';
+                const colHi  = 'rgba(255,180,210,0.97)';  // highlight for implantation site
+                const dimLn  = 'rgba(224,112,144,0.48)';
+                const dotCol = 'rgba(224,112,144,0.70)';
+                // Female panel spans W*0.53 → W*0.99; center at fx = W*0.765
+                const colXL  = W * 0.53 + 72;           // left column  — text right-aligned here
+                const colXR  = W * 0.53 + panelW - 68;  // right column — text left-aligned here
+                const startY = panelY + 32;
+                const endY   = panelY + panelH - 32;
+
+                // LEFT column — structures on the left or upper
+                const leftLabels = [
+                    { ax: fx,        ay: fy - 70,  txt: 'Fundus (uterus)',   hi: false },
+                    { ax: fx - 105,  ay: fy - 36,  txt: 'Fallopian tube',    hi: false },
+                    { ax: fx - 98,   ay: fy + 28,  txt: 'Fimbriae',          hi: false },
+                    { ax: fx - 100,  ay: fy + 46,  txt: 'Ovary (L)',         hi: false },
+                    { ax: fx - 12,   ay: fy + 10,  txt: 'Endometrium ★',     hi: true  },
                 ];
+                // RIGHT column — structures on the right or lower center
+                const rightLabels = [
+                    { ax: fx + 100,  ay: fy + 46,  txt: 'Ovary (R)',         hi: false },
+                    { ax: fx + 18,   ay: fy + 22,  txt: 'Uterine wall',      hi: false },
+                    { ax: fx + 12,   ay: fy + 38,  txt: 'Myometrium',        hi: false },
+                    { ax: fx,        ay: fy + 84,  txt: 'Cervix',            hi: false },
+                    { ax: fx,        ay: fy + 108, txt: 'Vaginal canal',     hi: false },
+                ];
+
                 ctx.save();
                 ctx.font = '10px Segoe UI, system-ui';
-                const colX  = lx + 6;
-                const startY = panelY + 28;
-                const endY   = panelY + panelH - 28;
-                const step   = (endY - startY) / (fLabels.length - 1);
-                fLabels.forEach(([ax, ay, txt], i) => {
-                    const labelY = startY + i * step;
+
+                // ── Left column ─────────────────────────────────────────────────
+                const stepL = (endY - startY) / (leftLabels.length - 1);
+                leftLabels.forEach(({ ax, ay, txt, hi }, i) => {
+                    const labelY = startY + i * stepL;
                     ctx.save();
                     ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = dim;
-                    ctx.lineWidth = 0.8;
-                    ctx.beginPath();
-                    ctx.moveTo(colX + 2, labelY);
-                    ctx.lineTo(ax, ay);
-                    ctx.stroke();
+                    ctx.strokeStyle = dimLn; ctx.lineWidth = 0.8;
+                    ctx.beginPath(); ctx.moveTo(colXL + 4, labelY); ctx.lineTo(ax, ay); ctx.stroke();
                     ctx.restore();
-                    ctx.beginPath(); ctx.arc(ax, ay, 2, 0, Math.PI*2);
-                    ctx.fillStyle = dim; ctx.fill();
-                    ctx.textAlign = 'left';
-                    ctx.fillStyle = col;
-                    ctx.fillText(txt, colX + 6, labelY + 3.5);
+                    ctx.beginPath(); ctx.arc(ax, ay, hi ? 2.5 : 2, 0, Math.PI*2);
+                    ctx.fillStyle = hi ? colHi : dotCol; ctx.fill();
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = hi ? colHi : col;
+                    if (hi) { ctx.save(); ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(255,140,180,0.55)'; }
+                    ctx.fillText(txt, colXL, labelY + 3.5);
+                    if (hi) ctx.restore();
                 });
+
+                // ── Right column ────────────────────────────────────────────────
+                const stepR = (endY - startY) / (rightLabels.length - 1);
+                rightLabels.forEach(({ ax, ay, txt, hi }, i) => {
+                    const labelY = startY + i * stepR;
+                    ctx.save();
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = dimLn; ctx.lineWidth = 0.8;
+                    ctx.beginPath(); ctx.moveTo(colXR - 4, labelY); ctx.lineTo(ax, ay); ctx.stroke();
+                    ctx.restore();
+                    ctx.beginPath(); ctx.arc(ax, ay, hi ? 2.5 : 2, 0, Math.PI*2);
+                    ctx.fillStyle = hi ? colHi : dotCol; ctx.fill();
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = hi ? colHi : col;
+                    if (hi) { ctx.save(); ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(255,140,180,0.55)'; }
+                    ctx.fillText(txt, colXR, labelY + 3.5);
+                    if (hi) ctx.restore();
+                });
+
                 ctx.restore();
             }
 
@@ -5544,55 +5574,63 @@
 
         // Render loop
         function render() {
-            if (currentStage ===4 && metaphaseIAttachStartTime === 0) metaphaseIAttachStartTime = performance.now();
-            if (currentStage ===7 && cytokinesisStartTime === 0) cytokinesisStartTime = performance.now();
-            if (currentStage ===10 && metaphaseIIAttachStartTime === 0) metaphaseIIAttachStartTime = performance.now();
-            // Note: anaphase2CustomStartTime is set exclusively in nextStage to avoid double-start (Bug 6 fix)
-            // Lerp chromatids toward targets — exclude stages handled by custom drawing
-            if (currentStage !==15 && currentStage !==8 && currentStage !==10 && currentStage !==11 && currentStage !==12 && currentStage !==13) {
-                chromatids.forEach(c => {
-                    let dx = c.targetX - c.x, dy = c.targetY - c.y;
-                    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) { c.x += dx * 0.08; c.y += dy * 0.08; }
-                    else { c.x = c.targetX; c.y = c.targetY; }
-                });
-            }
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (currentStage ===15) drawReproductiveAnatomy();
-            else if (currentStage ===0) drawInterphase();
-            else if (currentStage ===8) drawInterkinesis();
-            else if (currentStage ===9) drawProphaseII();
-            else if (currentStage ===11) {
-                drawCellsStage();
-                drawSpindleFibers();
-                drawAnaphaseIICustom(0);
-            } else if (currentStage ===12) {
-                drawTelophaseII();
-            } else if (currentStage ===13) {
-                drawCytokinesisII();
-            } else if (currentStage ===14) {
-                drawGameteMaturation();
-            } else {
-                drawCellsStage();
-                drawSpindleApparatus();
-                // For Cytokinesis I (stage 7): draw nucleus first so chromosomes appear inside it
-                if (currentStage === 7) drawNucleiForCurrentStageFinal();
-                chromatids.forEach(c => drawChromatidStage(c));
-                if (currentStage !== 7) drawNucleiForCurrentStageFinal();
-                drawSynaptonemalLadder();
-                drawChiasmata();
-                drawSpindleFibers();
-            }
-            
-            if (_elStageTitle) _elStageTitle.innerText = stages[currentStage].name;
-            if (_elStageDesc)  _elStageDesc.innerText  = stages[currentStage].desc;
+            try {
+                if (currentStage ===4 && metaphaseIAttachStartTime === 0) metaphaseIAttachStartTime = performance.now();
+                if (currentStage ===7 && cytokinesisStartTime === 0) cytokinesisStartTime = performance.now();
+                if (currentStage ===10 && metaphaseIIAttachStartTime === 0) metaphaseIIAttachStartTime = performance.now();
+                // Note: anaphase2CustomStartTime is set exclusively in nextStage to avoid double-start (Bug 6 fix)
+                // Lerp chromatids toward targets — exclude stages handled by custom drawing
+                if (currentStage !==15 && currentStage !==8 && currentStage !==10 && currentStage !==11 && currentStage !==12 && currentStage !==13) {
+                    chromatids.forEach(c => {
+                        let dx = c.targetX - c.x, dy = c.targetY - c.y;
+                        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) { c.x += dx * 0.08; c.y += dy * 0.08; }
+                        else { c.x = c.targetX; c.y = c.targetY; }
+                    });
+                }
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (currentStage ===15) drawReproductiveAnatomy();
+                else if (currentStage ===0) drawInterphase();
+                else if (currentStage ===8) drawInterkinesis();
+                else if (currentStage ===9) drawProphaseII();
+                else if (currentStage ===11) {
+                    drawCellsStage();
+                    drawSpindleFibers();
+                    drawAnaphaseIICustom(0);
+                } else if (currentStage ===12) {
+                    drawTelophaseII();
+                } else if (currentStage ===13) {
+                    drawCytokinesisII();
+                } else if (currentStage ===14) {
+                    drawGameteMaturation();
+                } else {
+                    drawCellsStage();
+                    drawSpindleApparatus();
+                    // For Cytokinesis I (stage 7): draw nucleus first so chromosomes appear inside it
+                    if (currentStage === 7) drawNucleiForCurrentStageFinal();
+                    chromatids.forEach(c => drawChromatidStage(c));
+                    if (currentStage !== 7) drawNucleiForCurrentStageFinal();
+                    drawSynaptonemalLadder();
+                    drawChiasmata();
+                    drawSpindleFibers();
+                }
 
-            if (_elCoBtn) {
-                const showBtn = (currentStage === 3 && !crossingOverCompleted);
-                _elCoBtn.style.display = showBtn ? "inline-block" : "none";
-                if (showBtn) _elCoBtn.disabled = false;
-            }
+                if (_elStageTitle) _elStageTitle.innerText = stages[currentStage].name;
+                if (_elStageDesc)  _elStageDesc.innerText  = stages[currentStage].desc;
 
-            if (_elNextBtn) _elNextBtn.innerText = (currentStage >= 15) ? "⟳ Reset & Restart" : "Next Stage ▶";
+                if (_elCoBtn) {
+                    const showBtn = (currentStage === 3 && !crossingOverCompleted);
+                    _elCoBtn.style.display = showBtn ? "inline-block" : "none";
+                    if (showBtn) _elCoBtn.disabled = false;
+                }
+
+                if (_elNextBtn) _elNextBtn.innerText = (currentStage >= 15) ? "⟳ Reset & Restart" : "Next Stage ▶";
+            } catch (err) {
+                // Log error but keep the animation loop alive — a single bad frame should not
+                // freeze the entire visualization. The browser console will show what threw.
+                console.error('[meiosis render] stage', currentStage, err);
+                // Restore canvas state stack depth to 0 so subsequent save/restore pairs still work.
+                try { ctx.restore(); } catch (_) { /* already at depth 0 */ }
+            }
             requestAnimationFrame(render);
         }
 
@@ -5825,13 +5863,16 @@
                 ctx.font = 'bold 9px Segoe UI, system-ui';
 
                 // Helper: anchor dot + dashed leader + right-side label
-                function drawFurrowLabel(cellCY, yOff, labelTxt, hexCol) {
-                    const dotX = 450 + CRX * 0.84;
-                    const dotY = cellCY + yOff;
+                const drawFurrowLabel = (cellCY, yOff, labelTxt, hexCol) => {
+                    const dotX  = 450 + CRX * 0.84;
+                    const dotY  = cellCY + yOff;
                     const lineX = dotX + 14;
                     const txtX  = lineX + 4;
+                    const dimCol = typeof hexCol === 'string'
+                        ? hexCol.replace(/[\d.]+\)$/, '0.50)')
+                        : 'rgba(255,200,80,0.50)';
                     ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = hexCol.replace(/[\d.]+\)$/, '0.52)');
+                    ctx.strokeStyle = dimCol;
                     ctx.lineWidth = 0.9;
                     ctx.beginPath(); ctx.moveTo(dotX, dotY); ctx.lineTo(lineX, dotY); ctx.stroke();
                     ctx.setLineDash([]);
@@ -5840,7 +5881,7 @@
                     ctx.fillStyle = hexCol;
                     ctx.textAlign = 'left';
                     ctx.fillText(labelTxt, txtX, dotY + 3.5);
-                }
+                };
 
                 // Cleavage furrow — at the cell equator
                 drawFurrowLabel(topCY, 0,  'Cleavage furrow',          'rgba(255,215,80,0.92)');
