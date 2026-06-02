@@ -5939,7 +5939,9 @@
             // ── Cleavage furrow + contractile ring labels ─────────────────────
             // Appear as the pinch deepens on the right side; fade with pinchAlpha
             if (pinchAlpha > 0.01 && groove > 0.15) {
-                const fA = pinchAlpha * Math.min(1, (groove - 0.15) / 0.28);
+                const fadeIn  = Math.min(1, (groove - 0.15) / 0.28);
+                const fadeOut = Math.max(0, 1 - Math.max(0, raw - 0.50) / 0.15);
+                const fA = pinchAlpha * fadeIn * fadeOut;
                 ctx.save();
                 ctx.globalAlpha = fA;
 
