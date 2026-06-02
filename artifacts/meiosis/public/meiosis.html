@@ -5942,27 +5942,50 @@
                 const fA = pinchAlpha * Math.min(1, (groove - 0.15) / 0.28);
                 ctx.save();
                 ctx.globalAlpha = fA;
-                ctx.font = 'bold 9px Segoe UI, system-ui';
 
-                // Helper: anchor dot + dashed leader + right-side label
+                // Helper: anchor dot + dashed leader + pill-backed label
                 const drawFurrowLabel = (cellCY, yOff, labelTxt, hexCol) => {
                     const dotX  = 450 + CRX * 0.84;
                     const dotY  = cellCY + yOff;
-                    const lineX = dotX + 14;
-                    const txtX  = lineX + 4;
+                    const lineX = dotX + 22;
+                    const txtX  = lineX + 8;
                     const dimCol = typeof hexCol === 'string'
-                        ? hexCol.replace(/[\d.]+\)$/, '0.50)')
-                        : 'rgba(255,200,80,0.50)';
-                    ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = dimCol;
-                    ctx.lineWidth = 0.9;
-                    ctx.beginPath(); ctx.moveTo(dotX, dotY); ctx.lineTo(lineX, dotY); ctx.stroke();
-                    ctx.setLineDash([]);
-                    ctx.beginPath(); ctx.arc(dotX, dotY, 2.2, 0, Math.PI*2);
+                        ? hexCol.replace(/[\d.]+\)$/, '0.55)')
+                        : 'rgba(255,200,80,0.55)';
+
+                    // Anchor dot (glowing)
+                    ctx.save();
+                    ctx.shadowBlur = 6; ctx.shadowColor = hexCol;
+                    ctx.beginPath(); ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2);
                     ctx.fillStyle = hexCol; ctx.fill();
+                    ctx.restore();
+
+                    // Dashed leader line
+                    ctx.setLineDash([3, 4]);
+                    ctx.strokeStyle = dimCol;
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath(); ctx.moveTo(dotX + 4, dotY); ctx.lineTo(lineX, dotY); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Measure text for pill background
+                    ctx.font = 'bold 11px "Segoe UI", system-ui, sans-serif';
+                    const tw = ctx.measureText(labelTxt).width;
+                    const pH = 16, pPad = 6;
+
+                    // Dark semi-transparent pill backdrop
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(4,8,24,0.78)';
+                    ctx.beginPath();
+                    ctx.roundRect(txtX - pPad, dotY - pH / 2, tw + pPad * 2, pH, 4);
+                    ctx.fill();
+                    ctx.restore();
+
+                    // Label text
                     ctx.fillStyle = hexCol;
                     ctx.textAlign = 'left';
-                    ctx.fillText(labelTxt, txtX, dotY + 3.5);
+                    ctx.shadowBlur = 5; ctx.shadowColor = hexCol;
+                    ctx.fillText(labelTxt, txtX, dotY + 4);
+                    ctx.shadowBlur = 0;
                 };
 
                 // Cleavage furrow — at the cell equator
