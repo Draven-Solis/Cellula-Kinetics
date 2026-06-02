@@ -1728,27 +1728,28 @@
                 const dimLine   = 'rgba(95,200,224,0.48)';
                 const dotCol    = 'rgba(95,200,224,0.70)';
                 // Column x positions (inside the male panel which spans W*0.01 → W*0.01+panelW)
-                const colXL = W * 0.01 + 76;           // left column  — text right-aligned here
-                const colXR = W * 0.01 + panelW - 108; // right column — text left-aligned here (shifted in to prevent overflow)
-                const startY = panelY + 32;
-                const endY   = panelY + panelH - 32;
+                const colXL = W * 0.01 + 94;           // left column  — text right-aligned here
+                const colXR = W * 0.01 + panelW - 100; // right column — text left-aligned here
+                const startY = panelY + 36;
+                const endY   = panelY + panelH - 36;
 
-                // LEFT column: upper pelvic organs
+                // LEFT column: central/upper structures — sorted top→bottom by anchor Y
                 const leftLabels = [
                     { ax: mx,       ay: my - 118, txt: 'Bladder'        },
-                    { ax: mx - 30,  ay: my - 80,  txt: 'Seminal vesicle'},
+                    { ax: mx - 28,  ay: my - 82,  txt: 'Seminal vesicle'},
                     { ax: mx,       ay: my - 68,  txt: 'Prostate'       },
                     { ax: mx,       ay: my + 10,  txt: 'Urethra'        },
                 ];
-                // RIGHT column: scrotal structures + external genitalia
+                // RIGHT column: lateral/scrotal structures — SORTED by anchor Y so
+                // leader lines never cross (label row order matches anchor Y order)
                 const rightLabels = [
-                    { ax: mx + 55,  ay: my - 5,   txt: 'Vas deferens',           hi: false },
-                    { ax: mx,       ay: my + 40,  txt: 'Penis',                  hi: false },
-                    { ax: mx,       ay: my + 72,  txt: 'Glans',                  hi: false },
-                    { ax: mx + 52,  ay: my + 128, txt: 'Scrotum',                hi: false },
-                    { ax: mx + 28,  ay: my + 130, txt: 'Testis',                 hi: false },
-                    { ax: mx + 13,  ay: my + 130, txt: 'Epididymis',             hi: false },
-                    { ax: mx + 28,  ay: my + 120, txt: 'Seminiferous tubule ★',  hi: true  },
+                    { ax: mx + 55,  ay: my - 5,   txt: 'Vas deferens',          hi: false },
+                    { ax: mx + 8,   ay: my + 40,  txt: 'Penis',                 hi: false },
+                    { ax: mx + 8,   ay: my + 70,  txt: 'Glans',                 hi: false },
+                    { ax: mx + 28,  ay: my + 112, txt: 'Seminiferous tubule ★', hi: true  },
+                    { ax: mx + 16,  ay: my + 120, txt: 'Epididymis',            hi: false },
+                    { ax: mx + 40,  ay: my + 132, txt: 'Testis',                hi: false },
+                    { ax: mx + 56,  ay: my + 143, txt: 'Scrotum',               hi: false },
                 ];
 
                 ctx.save();
@@ -1858,6 +1859,53 @@
             ctx.bezierCurveTo(fx + 120, fy - 16, fx + 114, fy + 14, fx + 100, fy + 26);
             ctx.stroke();
             ctx.restore();
+
+            // ── Cilia animation (subtle traveling wave inside lumen) ──────────
+            // Short hair-like strokes perpendicular to tube centreline, sweeping
+            // fluid from fimbriae toward uterus (the biological cilia direction).
+            {
+                ctx.save();
+                ctx.lineWidth = 0.85; ctx.lineCap = 'round';
+                ctx.strokeStyle = 'rgba(240,190,210,0.36)';
+                const t_cilia = now * 0.0026;
+                const CL = 4.2;        // cilium length px
+                const WA = 0.68;       // wave amplitude radians
+                const NC = 10;         // cilia per bezier segment
+
+                function drawCiliaForSeg(p0x, p0y, c1x, c1y, c2x, c2y, p1x, p1y, segOff) {
+                    for (let i = 0; i < NC; i++) {
+                        const t  = (i + 0.5) / NC;
+                        const mt = 1 - t;
+                        const cx = mt*mt*mt*p0x + 3*mt*mt*t*c1x + 3*mt*t*t*c2x + t*t*t*p1x;
+                        const cy = mt*mt*mt*p0y + 3*mt*mt*t*c1y + 3*mt*t*t*c2y + t*t*t*p1y;
+                        // Tangent (derivative of cubic bezier)
+                        const dx = 3*mt*mt*(c1x-p0x) + 6*mt*t*(c2x-c1x) + 3*t*t*(p1x-c2x);
+                        const dy = 3*mt*mt*(c1y-p0y) + 6*mt*t*(c2y-c1y) + 3*t*t*(p1y-c2y);
+                        const dl = Math.sqrt(dx*dx+dy*dy) || 1;
+                        // Left-hand normal (perpendicular)
+                        const nx = -dy/dl, ny = dx/dl;
+                        // Traveling wave: phase decreases toward uterus end (p0 side)
+                        const wave = Math.sin(t_cilia - (segOff + t) * 5.2) * WA;
+                        // Draw one cilium on each inner wall of the lumen
+                        for (const side of [1, -1]) {
+                            const bx = cx + nx * side * 3.2;
+                            const by = cy + ny * side * 3.2;
+                            const ang = Math.atan2(ny * side, nx * side) + Math.PI * 0.5 + wave;
+                            ctx.beginPath();
+                            ctx.moveTo(bx, by);
+                            ctx.lineTo(bx + Math.cos(ang) * CL, by + Math.sin(ang) * CL);
+                            ctx.stroke();
+                        }
+                    }
+                }
+                // Left tube: uterus-end → apex, then apex → fimbriae
+                drawCiliaForSeg(fx-22, fy-50,  fx-50,  fy-72,  fx-88,  fy-62, fx-105, fy-36, 0);
+                drawCiliaForSeg(fx-105,fy-36, fx-118, fy-14, fx-112, fy+16,  fx-98,  fy+28, 1);
+                // Right tube (mirrored)
+                drawCiliaForSeg(fx+22, fy-50,  fx+50,  fy-72,  fx+88,  fy-62, fx+105, fy-36, 0);
+                drawCiliaForSeg(fx+105,fy-36, fx+118, fy-14, fx+112, fy+16,  fx+98,  fy+28, 1);
+                ctx.restore();
+            }
 
             // ── Fimbriae — splayed finger-like petals at tube ends ──
             ctx.save();
