@@ -5651,147 +5651,156 @@
 
         // Render loop
         // ══════════════════════════════════════════════════════════════════════
-        //  PARENT CORNER PANELS
-        //  Top-left : Father + paternal chromosomes (blue long r, cyan short y)
-        //  Top-right: Mother + maternal chromosomes (orange long R, red short Y)
+        //  PARENT CORNER PANELS  (fully drawn — no PNG images needed)
+        //  Top-left : Father stick figure + paternal chromosomes (blue r, cyan y)
+        //  Top-right: Mother stick figure + maternal chromosomes (orange R, red Y)
         // ══════════════════════════════════════════════════════════════════════
         function drawParentCorners() {
-            const PAD = 8, ICN = 46, PW = 160, PH = 78;
-            const CY  = 36; // chrom vertical centre within panel coords
-            const LONG_H = 36, SHORT_H = 22, CHR_W = 8;
+            const PAD = 8, PW = 96, PH = 108;
 
-            // Rounded-rect path helper (avoids ctx.roundRect browser compat issues)
+            // Rounded-rect path helper
             function _rr(x, y, w, h, r) {
                 ctx.beginPath();
                 ctx.moveTo(x + r, y);
-                ctx.lineTo(x + w - r, y);   ctx.arcTo(x + w, y,     x + w, y + r,     r);
+                ctx.lineTo(x + w - r, y);     ctx.arcTo(x + w, y,     x + w, y + r,     r);
                 ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-                ctx.lineTo(x + r, y + h);   ctx.arcTo(x,     y + h, x,     y + h - r, r);
-                ctx.lineTo(x,     y + r);   ctx.arcTo(x,     y,     x + r, y,          r);
+                ctx.lineTo(x + r, y + h);     ctx.arcTo(x,     y + h, x,     y + h - r, r);
+                ctx.lineTo(x,     y + r);     ctx.arcTo(x,     y,     x + r, y,          r);
                 ctx.closePath();
             }
 
-            // Draw a single mini chromosome (two pill arms + centromere gap)
-            function _chrom(bx, by, cx, col, h) {
-                const r = CHR_W / 2, gap = 2.5, halfH = h / 2;
-                const ax = bx + cx - r;
+            // Mini chromosome pair (two pill arms with centromere gap) at canvas (cx, cy)
+            function _chrom(cx, cy, col, h) {
+                const w = 5, gap = 1.5, halfH = h / 2, r = w / 2;
                 ctx.save();
                 ctx.fillStyle = col;
-                ctx.shadowBlur = 6; ctx.shadowColor = col;
-                _rr(ax, by + CY - halfH,     CHR_W, halfH - gap, r); ctx.fill();
-                _rr(ax, by + CY + gap,        CHR_W, halfH - gap, r); ctx.fill();
+                ctx.shadowBlur = 5; ctx.shadowColor = col;
+                _rr(cx - r, cy - halfH,  w, halfH - gap, r); ctx.fill();
+                _rr(cx - r, cy + gap,    w, halfH - gap, r); ctx.fill();
                 ctx.restore();
             }
 
-            // Gene label above chromosome
-            function _lbl(bx, by, cx, col, txt, h) {
+            // Draw one complete parent panel
+            function _panel(bx, by, sex) {
+                const fc  = bx + PW / 2;
+                const figCol = 'rgba(215,232,255,0.92)';
+
+                // ── Panel background ────────────────────────────────────────
                 ctx.save();
-                ctx.font = 'bold 11px Segoe UI, system-ui';
-                ctx.fillStyle = col;
+                ctx.fillStyle   = sex === 'M' ? 'rgba(5,13,36,0.86)' : 'rgba(32,7,15,0.86)';
+                ctx.strokeStyle = sex === 'M' ? 'rgba(41,121,255,0.50)' : 'rgba(255,140,0,0.50)';
+                ctx.lineWidth = 1;
+                _rr(bx, by, PW, PH, 9); ctx.fill();
+                _rr(bx, by, PW, PH, 9); ctx.stroke();
+                ctx.restore();
+
+                // ── Figure outline ──────────────────────────────────────────
+                ctx.save();
+                ctx.strokeStyle = figCol;
+                ctx.lineWidth   = 1.8;
+                ctx.lineCap     = 'round';
+                ctx.lineJoin    = 'round';
+
+                // Head
+                const headY = by + 15;
+                ctx.beginPath(); ctx.arc(fc, headY, 9, 0, Math.PI * 2); ctx.stroke();
+
+                const tTop = headY + 11;
+
+                if (sex === 'M') {
+                    // Rectangular torso
+                    const tW = 26, tH = 32, tL = fc - tW / 2;
+                    _rr(tL, tTop, tW, tH, 3); ctx.stroke();
+
+                    // Arms
+                    ctx.beginPath(); ctx.moveTo(tL,      tTop + 6); ctx.lineTo(tL - 11, tTop + tH - 4); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(tL + tW, tTop + 6); ctx.lineTo(tL + tW + 11, tTop + tH - 4); ctx.stroke();
+
+                    // Legs
+                    const legY = tTop + tH;
+                    ctx.beginPath(); ctx.moveTo(fc - 5, legY); ctx.lineTo(fc - 7, legY + 22); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(fc + 5, legY); ctx.lineTo(fc + 7, legY + 22); ctx.stroke();
+
+                    // Torso inner fill (so chromosomes read cleanly)
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(0,8,28,0.60)';
+                    _rr(tL + 1, tTop + 1, tW - 2, tH - 2, 2); ctx.fill();
+                    ctx.restore();
+
+                    // Paternal chromosomes inside torso
+                    const chromY = tTop + Math.round(tH * 0.46);
+                    _chrom(fc - 7, chromY, '#2979FF', 18); // long  (r)
+                    _chrom(fc + 7, chromY, '#00BCD4', 11); // short (y)
+
+                    // Gene labels below each chromosome
+                    ctx.save();
+                    ctx.font = 'bold 8px Segoe UI, system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#2979FF'; ctx.shadowBlur = 3; ctx.shadowColor = '#2979FF';
+                    ctx.fillText('r', fc - 7, chromY + 9 + 7);
+                    ctx.fillStyle = '#00BCD4'; ctx.shadowColor = '#00BCD4';
+                    ctx.fillText('y', fc + 7, chromY + 5.5 + 7);
+                    ctx.restore();
+
+                } else {
+                    // Upper torso
+                    const uW = 24, uH = 20, uL = fc - uW / 2;
+                    _rr(uL, tTop, uW, uH, 3); ctx.stroke();
+
+                    // Dress / skirt trapezoid
+                    const skTop = tTop + uH - 3, skH = 26;
+                    ctx.beginPath();
+                    ctx.moveTo(uL,      skTop);
+                    ctx.lineTo(uL - 13, skTop + skH);
+                    ctx.lineTo(uL + uW + 13, skTop + skH);
+                    ctx.lineTo(uL + uW, skTop);
+                    ctx.closePath(); ctx.stroke();
+
+                    // Arms
+                    ctx.beginPath(); ctx.moveTo(uL,      tTop + 5); ctx.lineTo(uL - 11,      tTop + uH - 3); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(uL + uW, tTop + 5); ctx.lineTo(uL + uW + 11, tTop + uH - 3); ctx.stroke();
+
+                    // Legs
+                    const legY = skTop + skH;
+                    ctx.beginPath(); ctx.moveTo(fc - 7, legY); ctx.lineTo(fc - 7, legY + 15); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(fc + 7, legY); ctx.lineTo(fc + 7, legY + 15); ctx.stroke();
+
+                    // Torso inner fill
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(28,4,12,0.60)';
+                    _rr(uL + 1, tTop + 1, uW - 2, uH - 2, 2); ctx.fill();
+                    ctx.restore();
+
+                    // Maternal chromosomes inside upper torso
+                    const chromY = tTop + Math.round(uH * 0.50);
+                    _chrom(fc - 7, chromY, '#FF8C00', 16); // long  (R)
+                    _chrom(fc + 7, chromY, '#E53935', 10); // short (Y)
+
+                    // Gene labels
+                    ctx.save();
+                    ctx.font = 'bold 8px Segoe UI, system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#FF8C00'; ctx.shadowBlur = 3; ctx.shadowColor = '#FF8C00';
+                    ctx.fillText('R', fc - 7, chromY + 8 + 7);
+                    ctx.fillStyle = '#E53935'; ctx.shadowColor = '#E53935';
+                    ctx.fillText('Y', fc + 7, chromY + 5 + 7);
+                    ctx.restore();
+                }
+
+                ctx.restore(); // end figure outline save
+
+                // Caption
+                ctx.save();
+                ctx.font = '8.5px Segoe UI, system-ui';
+                ctx.fillStyle = sex === 'M' ? 'rgba(148,192,255,0.80)' : 'rgba(255,198,155,0.80)';
                 ctx.textAlign = 'center';
-                ctx.shadowBlur = 4; ctx.shadowColor = col;
-                ctx.fillText(txt, bx + cx, by + CY - h / 2 - 5);
+                ctx.fillText(sex === 'M' ? 'Father' : 'Mother', fc, by + PH - 6);
                 ctx.restore();
             }
 
             ctx.save();
-
-            // ── Father (top-left) ─────────────────────────────────────────────
-            {
-                const bx = PAD, by = PAD;
-                ctx.save();
-                ctx.fillStyle = 'rgba(6,14,34,0.82)';
-                _rr(bx, by, PW, PH, 8); ctx.fill();
-                ctx.strokeStyle = 'rgba(41,121,255,0.44)'; ctx.lineWidth = 1;
-                _rr(bx, by, PW, PH, 8); ctx.stroke();
-                ctx.restore();
-
-                // Icon (centre-square crop)
-                if (_imgMale.complete && _imgMale.naturalWidth > 0) {
-                    const iw = _imgMale.naturalWidth, ih = _imgMale.naturalHeight;
-                    const s  = Math.min(iw, ih);
-                    ctx.save(); ctx.globalAlpha = 0.92;
-                    ctx.drawImage(_imgMale, (iw - s) / 2, 0, s, s,
-                                  bx + 6, by + (PH - ICN) / 2, ICN, ICN);
-                    ctx.restore();
-                }
-
-                // "Father" caption
-                ctx.save();
-                ctx.font = '8px Segoe UI, system-ui';
-                ctx.fillStyle = 'rgba(150,195,255,0.72)';
-                ctx.textAlign = 'center';
-                ctx.fillText('Father', bx + 6 + ICN / 2, by + PH - 5);
-                ctx.restore();
-
-                // Divider
-                ctx.save();
-                ctx.strokeStyle = 'rgba(41,121,255,0.25)'; ctx.lineWidth = 0.8;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath();
-                ctx.moveTo(bx + ICN + 14, by + 8);
-                ctx.lineTo(bx + ICN + 14, by + PH - 8);
-                ctx.stroke();
-                ctx.restore();
-
-                // Paternal long (r — blue) and short (y — cyan)
-                const lcx = ICN + 14 + 20;
-                const scx = lcx + 26;
-                _chrom(bx, by, lcx, '#2979FF', LONG_H);
-                _lbl  (bx, by, lcx, '#2979FF', 'r', LONG_H);
-                _chrom(bx, by, scx, '#00BCD4', SHORT_H);
-                _lbl  (bx, by, scx, '#00BCD4', 'y', SHORT_H);
-            }
-
-            // ── Mother (top-right) ────────────────────────────────────────────
-            {
-                const bx = canvas.width - PAD - PW, by = PAD;
-                ctx.save();
-                ctx.fillStyle = 'rgba(34,8,16,0.82)';
-                _rr(bx, by, PW, PH, 8); ctx.fill();
-                ctx.strokeStyle = 'rgba(255,140,0,0.44)'; ctx.lineWidth = 1;
-                _rr(bx, by, PW, PH, 8); ctx.stroke();
-                ctx.restore();
-
-                // Icon (right side of panel)
-                const iconX = bx + PW - 6 - ICN;
-                if (_imgFemale.complete && _imgFemale.naturalWidth > 0) {
-                    const iw = _imgFemale.naturalWidth, ih = _imgFemale.naturalHeight;
-                    const s  = Math.min(iw, ih);
-                    ctx.save(); ctx.globalAlpha = 0.92;
-                    ctx.drawImage(_imgFemale, (iw - s) / 2, 0, s, s,
-                                  iconX, by + (PH - ICN) / 2, ICN, ICN);
-                    ctx.restore();
-                }
-
-                // "Mother" caption
-                ctx.save();
-                ctx.font = '8px Segoe UI, system-ui';
-                ctx.fillStyle = 'rgba(255,205,165,0.72)';
-                ctx.textAlign = 'center';
-                ctx.fillText('Mother', iconX + ICN / 2, by + PH - 5);
-                ctx.restore();
-
-                // Divider
-                const divRel = iconX - 8 - bx; // divider x relative to bx
-                ctx.save();
-                ctx.strokeStyle = 'rgba(255,140,0,0.25)'; ctx.lineWidth = 0.8;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath();
-                ctx.moveTo(bx + divRel, by + 8);
-                ctx.lineTo(bx + divRel, by + PH - 8);
-                ctx.stroke();
-                ctx.restore();
-
-                // Maternal long (R — orange) and short (Y — red)
-                const lcx = divRel - 22;
-                const scx = lcx - 26;
-                _chrom(bx, by, lcx, '#FF8C00', LONG_H);
-                _lbl  (bx, by, lcx, '#FF8C00', 'R', LONG_H);
-                _chrom(bx, by, scx, '#E53935', SHORT_H);
-                _lbl  (bx, by, scx, '#E53935', 'Y', SHORT_H);
-            }
-
+            _panel(PAD, PAD, 'M');
+            _panel(canvas.width - PAD - PW, PAD, 'F');
             ctx.restore();
         }
 
