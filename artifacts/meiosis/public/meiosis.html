@@ -790,9 +790,9 @@
                 const driftTY = nY + ch.tgt[1] * radius * 1.15;
 
                 const buildPts = (perpOff) => ch.pts.map((p, i) => {
-                    // Condense: lerp 80% toward centromere
-                    const nx = p[0] + (cx2 - p[0]) * condE * 0.80;
-                    const ny = p[1] + (cy2 - p[1]) * condE * 0.80;
+                    // Condense: lerp 52% toward centromere (less collapse = bigger condensed shape)
+                    const nx = p[0] + (cx2 - p[0]) * condE * 0.52;
+                    const ny = p[1] + (cy2 - p[1]) * condE * 0.52;
                     // Slow oscillation (stops when condensed)
                     const fx = amp * Math.sin(t * 0.55 + ch.ph[i]);
                     const fy = amp * Math.cos(t * 0.45 + ch.ph[i] + 1.1);
@@ -823,18 +823,46 @@
                     ctx.lineWidth   = lw;
                     ctx.lineCap     = 'round';
                     ctx.lineJoin    = 'round';
-                    ctx.shadowBlur  = 5 + condE * 12;
+                    ctx.shadowBlur  = 5 + condE * 14;
                     ctx.shadowColor = `rgba(${r},${g},${b},${alpha * 0.55})`;
                     ctx.stroke();
                     ctx.shadowBlur  = 0;
                 };
 
                 const sep = 5.5 * dupT * (1 - condE * 0.65);
-                const lw  = 1.6 + condE * 4.8;
+                const lw  = 1.6 + condE * 6.2;  // thicker at full condensation
 
                 strokeThread(buildPts(-sep), threadAlpha * 0.93, lw);
                 if (dupT > 0.02) {
                     strokeThread(buildPts(+sep), threadAlpha * dupT * 0.90, lw);
+                }
+
+                // ── Centromere disc — visible as chromosomes condense ──────────
+                // Appears at the constriction point (pt[2]) between the two arms.
+                if (condE > 0.35) {
+                    const centAlpha = Math.min(1, (condE - 0.35) / 0.45) * threadAlpha;
+                    // Centromere screen pos = pt[2] with sep=0 (both sisters share same centromere)
+                    const cnx = cx2 + (cx2 - cx2) * condE * 0.52; // = cx2 (pt[2] is the centromere)
+                    const cny = cy2;
+                    const centSX = nX + cnx * radius + amp * Math.sin(t * 0.55 + ch.ph[2]);
+                    const centSY = nY + cny * radius + amp * Math.cos(t * 0.45 + ch.ph[2] + 1.1);
+                    const centX  = centSX + (driftTX - condSX) * driftE;
+                    const centY  = centSY + (driftTY - condSY) * driftE;
+                    const discR  = 3.5 + condE * 2.0;
+                    ctx.save();
+                    ctx.globalAlpha = centAlpha;
+                    // Bright filled disc
+                    ctx.beginPath(); ctx.arc(centX, centY, discR, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+80)},0.92)`;
+                    ctx.shadowBlur  = 8; ctx.shadowColor = `rgba(${r},${g},${b},0.6)`;
+                    ctx.fill();
+                    // Dark ring to mark the constriction clearly
+                    ctx.shadowBlur = 0;
+                    ctx.beginPath(); ctx.arc(centX, centY, discR, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(${r},${g},${b},0.65)`;
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                    ctx.restore();
                 }
             }
 
