@@ -202,6 +202,10 @@
             accent: "#00c6ff"
         };
 
+        // ── Parent icon images (pre-loaded once) ───────────────────────────────
+        const _imgMale   = new Image(); _imgMale.src   = 'male_icon.png';
+        const _imgFemale = new Image(); _imgFemale.src = 'female_icon.png';
+
         // ----- STAGES ARRAY -----
         const stages = [
             { name: "Interphase", desc: "Cell grows, organelles form, DNA replicates, and centrosomes duplicate." },
@@ -5646,6 +5650,151 @@
         function startCrossingOver() { if (currentStage !==3 || crossingOverCompleted) return; crossingOverActive = true; crossOverProgress = 0; function animate() { crossOverProgress += 0.02; if (crossOverProgress >= 1) { crossOverProgress = 1; crossingOverActive = false; crossingOverCompleted = true; chromatids.forEach(c => { if (c.canSwap) c.swapped = true; }); const btn = document.getElementById("crossingOverBtn"); if (btn) btn.disabled = true; return; } crossOverAnimId = requestAnimationFrame(animate); } animate(); }
 
         // Render loop
+        // ══════════════════════════════════════════════════════════════════════
+        //  PARENT CORNER PANELS
+        //  Top-left : Father + paternal chromosomes (blue long r, cyan short y)
+        //  Top-right: Mother + maternal chromosomes (orange long R, red short Y)
+        // ══════════════════════════════════════════════════════════════════════
+        function drawParentCorners() {
+            const PAD = 8, ICN = 46, PW = 160, PH = 78;
+            const CY  = 36; // chrom vertical centre within panel coords
+            const LONG_H = 36, SHORT_H = 22, CHR_W = 8;
+
+            // Rounded-rect path helper (avoids ctx.roundRect browser compat issues)
+            function _rr(x, y, w, h, r) {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);   ctx.arcTo(x + w, y,     x + w, y + r,     r);
+                ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+                ctx.lineTo(x + r, y + h);   ctx.arcTo(x,     y + h, x,     y + h - r, r);
+                ctx.lineTo(x,     y + r);   ctx.arcTo(x,     y,     x + r, y,          r);
+                ctx.closePath();
+            }
+
+            // Draw a single mini chromosome (two pill arms + centromere gap)
+            function _chrom(bx, by, cx, col, h) {
+                const r = CHR_W / 2, gap = 2.5, halfH = h / 2;
+                const ax = bx + cx - r;
+                ctx.save();
+                ctx.fillStyle = col;
+                ctx.shadowBlur = 6; ctx.shadowColor = col;
+                _rr(ax, by + CY - halfH,     CHR_W, halfH - gap, r); ctx.fill();
+                _rr(ax, by + CY + gap,        CHR_W, halfH - gap, r); ctx.fill();
+                ctx.restore();
+            }
+
+            // Gene label above chromosome
+            function _lbl(bx, by, cx, col, txt, h) {
+                ctx.save();
+                ctx.font = 'bold 11px Segoe UI, system-ui';
+                ctx.fillStyle = col;
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 4; ctx.shadowColor = col;
+                ctx.fillText(txt, bx + cx, by + CY - h / 2 - 5);
+                ctx.restore();
+            }
+
+            ctx.save();
+
+            // ── Father (top-left) ─────────────────────────────────────────────
+            {
+                const bx = PAD, by = PAD;
+                ctx.save();
+                ctx.fillStyle = 'rgba(6,14,34,0.82)';
+                _rr(bx, by, PW, PH, 8); ctx.fill();
+                ctx.strokeStyle = 'rgba(41,121,255,0.44)'; ctx.lineWidth = 1;
+                _rr(bx, by, PW, PH, 8); ctx.stroke();
+                ctx.restore();
+
+                // Icon (centre-square crop)
+                if (_imgMale.complete && _imgMale.naturalWidth > 0) {
+                    const iw = _imgMale.naturalWidth, ih = _imgMale.naturalHeight;
+                    const s  = Math.min(iw, ih);
+                    ctx.save(); ctx.globalAlpha = 0.92;
+                    ctx.drawImage(_imgMale, (iw - s) / 2, 0, s, s,
+                                  bx + 6, by + (PH - ICN) / 2, ICN, ICN);
+                    ctx.restore();
+                }
+
+                // "Father" caption
+                ctx.save();
+                ctx.font = '8px Segoe UI, system-ui';
+                ctx.fillStyle = 'rgba(150,195,255,0.72)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Father', bx + 6 + ICN / 2, by + PH - 5);
+                ctx.restore();
+
+                // Divider
+                ctx.save();
+                ctx.strokeStyle = 'rgba(41,121,255,0.25)'; ctx.lineWidth = 0.8;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(bx + ICN + 14, by + 8);
+                ctx.lineTo(bx + ICN + 14, by + PH - 8);
+                ctx.stroke();
+                ctx.restore();
+
+                // Paternal long (r — blue) and short (y — cyan)
+                const lcx = ICN + 14 + 20;
+                const scx = lcx + 26;
+                _chrom(bx, by, lcx, '#2979FF', LONG_H);
+                _lbl  (bx, by, lcx, '#2979FF', 'r', LONG_H);
+                _chrom(bx, by, scx, '#00BCD4', SHORT_H);
+                _lbl  (bx, by, scx, '#00BCD4', 'y', SHORT_H);
+            }
+
+            // ── Mother (top-right) ────────────────────────────────────────────
+            {
+                const bx = canvas.width - PAD - PW, by = PAD;
+                ctx.save();
+                ctx.fillStyle = 'rgba(34,8,16,0.82)';
+                _rr(bx, by, PW, PH, 8); ctx.fill();
+                ctx.strokeStyle = 'rgba(255,140,0,0.44)'; ctx.lineWidth = 1;
+                _rr(bx, by, PW, PH, 8); ctx.stroke();
+                ctx.restore();
+
+                // Icon (right side of panel)
+                const iconX = bx + PW - 6 - ICN;
+                if (_imgFemale.complete && _imgFemale.naturalWidth > 0) {
+                    const iw = _imgFemale.naturalWidth, ih = _imgFemale.naturalHeight;
+                    const s  = Math.min(iw, ih);
+                    ctx.save(); ctx.globalAlpha = 0.92;
+                    ctx.drawImage(_imgFemale, (iw - s) / 2, 0, s, s,
+                                  iconX, by + (PH - ICN) / 2, ICN, ICN);
+                    ctx.restore();
+                }
+
+                // "Mother" caption
+                ctx.save();
+                ctx.font = '8px Segoe UI, system-ui';
+                ctx.fillStyle = 'rgba(255,205,165,0.72)';
+                ctx.textAlign = 'center';
+                ctx.fillText('Mother', iconX + ICN / 2, by + PH - 5);
+                ctx.restore();
+
+                // Divider
+                const divRel = iconX - 8 - bx; // divider x relative to bx
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,140,0,0.25)'; ctx.lineWidth = 0.8;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(bx + divRel, by + 8);
+                ctx.lineTo(bx + divRel, by + PH - 8);
+                ctx.stroke();
+                ctx.restore();
+
+                // Maternal long (R — orange) and short (Y — red)
+                const lcx = divRel - 22;
+                const scx = lcx - 26;
+                _chrom(bx, by, lcx, '#FF8C00', LONG_H);
+                _lbl  (bx, by, lcx, '#FF8C00', 'R', LONG_H);
+                _chrom(bx, by, scx, '#E53935', SHORT_H);
+                _lbl  (bx, by, scx, '#E53935', 'Y', SHORT_H);
+            }
+
+            ctx.restore();
+        }
+
         function render() {
             try {
                 if (currentStage ===4 && metaphaseIAttachStartTime === 0) metaphaseIAttachStartTime = performance.now();
@@ -5697,6 +5846,7 @@
                 }
 
                 if (_elNextBtn) _elNextBtn.innerText = (currentStage >= 15) ? "⟳ Reset & Restart" : "Next Stage ▶";
+                drawParentCorners();
             } catch (err) {
                 // Log error but keep the animation loop alive — a single bad frame should not
                 // freeze the entire visualization. The browser console will show what threw.
