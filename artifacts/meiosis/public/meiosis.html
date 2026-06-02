@@ -1667,50 +1667,73 @@
             ctx.textAlign = 'center';
             ctx.fillText('Male Reproductive System', mx, panelY + panelH - 8);
 
-            // ── Neat side-column labels with dotted leader lines (right side) ──
+            // ── Two-column anatomy labels (left column + right column) ──────────
             {
-                const lx = W * 0.01 + panelW - 8;  // right edge of male panel
-                const col  = '#5fc8e0';
-                const dim  = 'rgba(95,200,224,0.55)';
-                // Each entry: [anchorX on anatomy, anchorY, label text]
-                const mLabels = [
-                    [mx,          my - 118, 'Bladder'],
-                    [mx + 30,     my - 80,  'Seminal vesicle'],
-                    [mx,          my - 68,  'Prostate'],
-                    [mx + 55,     my - 5,   'Vas deferens'],
-                    [mx,          my + 40,  'Penis'],
-                    [mx,          my + 72,  'Glans'],
-                    [mx + 52,     my + 128, 'Scrotum'],
-                    [mx + 28,     my + 130, 'Testis'],
-                    [mx + 13,     my + 130, 'Epididymis'],
+                const col       = '#5fc8e0';
+                const colHi     = 'rgba(130,240,255,0.97)';  // highlight for meiosis site
+                const dimLine   = 'rgba(95,200,224,0.48)';
+                const dotCol    = 'rgba(95,200,224,0.70)';
+                // Column x positions (inside the male panel which spans W*0.01 → W*0.01+panelW)
+                const colXL = W * 0.01 + 76;          // left column — text right-aligned here
+                const colXR = W * 0.01 + panelW - 68; // right column — text left-aligned here
+                const startY = panelY + 32;
+                const endY   = panelY + panelH - 32;
+
+                // LEFT column: upper pelvic organs
+                const leftLabels = [
+                    { ax: mx,       ay: my - 118, txt: 'Bladder'        },
+                    { ax: mx - 30,  ay: my - 80,  txt: 'Seminal vesicle'},
+                    { ax: mx,       ay: my - 68,  txt: 'Prostate'       },
+                    { ax: mx,       ay: my + 10,  txt: 'Urethra'        },
                 ];
+                // RIGHT column: scrotal structures + external genitalia
+                const rightLabels = [
+                    { ax: mx + 55,  ay: my - 5,   txt: 'Vas deferens',           hi: false },
+                    { ax: mx,       ay: my + 40,  txt: 'Penis',                  hi: false },
+                    { ax: mx,       ay: my + 72,  txt: 'Glans',                  hi: false },
+                    { ax: mx + 52,  ay: my + 128, txt: 'Scrotum',                hi: false },
+                    { ax: mx + 28,  ay: my + 130, txt: 'Testis',                 hi: false },
+                    { ax: mx + 13,  ay: my + 130, txt: 'Epididymis',             hi: false },
+                    { ax: mx + 28,  ay: my + 120, txt: 'Seminiferous tubule ★',  hi: true  },
+                ];
+
                 ctx.save();
                 ctx.font = '10px Segoe UI, system-ui';
-                // Distribute labels evenly down the right column
-                const colX = lx - 4;
-                const startY = panelY + 28;
-                const endY   = panelY + panelH - 28;
-                const step   = (endY - startY) / (mLabels.length - 1);
-                mLabels.forEach(([ax, ay, txt], i) => {
-                    const labelY = startY + i * step;
-                    // Dotted leader line from label to anatomy point
+
+                // ── Left column ──────────────────────────────────────────────────
+                const stepL = (endY - startY) / (leftLabels.length - 1);
+                leftLabels.forEach(({ ax, ay, txt }, i) => {
+                    const labelY = startY + i * stepL;
                     ctx.save();
                     ctx.setLineDash([2, 4]);
-                    ctx.strokeStyle = dim;
-                    ctx.lineWidth = 0.8;
-                    ctx.beginPath();
-                    ctx.moveTo(colX - 2, labelY);
-                    ctx.lineTo(ax, ay);
-                    ctx.stroke();
+                    ctx.strokeStyle = dimLine; ctx.lineWidth = 0.8;
+                    ctx.beginPath(); ctx.moveTo(colXL + 4, labelY); ctx.lineTo(ax, ay); ctx.stroke();
                     ctx.restore();
-                    // Small anchor dot on anatomy
                     ctx.beginPath(); ctx.arc(ax, ay, 2, 0, Math.PI*2);
-                    ctx.fillStyle = dim; ctx.fill();
-                    // Label text — right-aligned at column edge
+                    ctx.fillStyle = dotCol; ctx.fill();
                     ctx.textAlign = 'right';
                     ctx.fillStyle = col;
-                    ctx.fillText(txt, colX - 6, labelY + 3.5);
+                    ctx.fillText(txt, colXL, labelY + 3.5);
                 });
+
+                // ── Right column ─────────────────────────────────────────────────
+                const stepR = (endY - startY) / (rightLabels.length - 1);
+                rightLabels.forEach(({ ax, ay, txt, hi }, i) => {
+                    const labelY = startY + i * stepR;
+                    ctx.save();
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = dimLine; ctx.lineWidth = 0.8;
+                    ctx.beginPath(); ctx.moveTo(colXR - 4, labelY); ctx.lineTo(ax, ay); ctx.stroke();
+                    ctx.restore();
+                    ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, Math.PI*2);
+                    ctx.fillStyle = hi ? colHi : dotCol; ctx.fill();
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = hi ? colHi : col;
+                    if (hi) { ctx.save(); ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(100,230,255,0.55)'; }
+                    ctx.fillText(txt, colXR, labelY + 3.5);
+                    if (hi) ctx.restore();
+                });
+
                 ctx.restore();
             }
 
@@ -5789,6 +5812,46 @@
                     drawRodChrom(450 + shortOffX, northY, northCs[1]);
                     drawRodChrom(450 + longOffX,  southY, southCs[0]);
                     drawRodChrom(450 + shortOffX, southY, southCs[1]);
+                }
+                ctx.restore();
+            }
+
+            // ── Cleavage furrow + contractile ring labels ─────────────────────
+            // Appear as the pinch deepens on the right side; fade with pinchAlpha
+            if (pinchAlpha > 0.01 && groove > 0.15) {
+                const fA = pinchAlpha * Math.min(1, (groove - 0.15) / 0.28);
+                ctx.save();
+                ctx.globalAlpha = fA;
+                ctx.font = 'bold 9px Segoe UI, system-ui';
+
+                // Helper: anchor dot + dashed leader + right-side label
+                function drawFurrowLabel(cellCY, yOff, labelTxt, hexCol) {
+                    const dotX = 450 + CRX * 0.84;
+                    const dotY = cellCY + yOff;
+                    const lineX = dotX + 14;
+                    const txtX  = lineX + 4;
+                    ctx.setLineDash([2, 4]);
+                    ctx.strokeStyle = hexCol.replace(/[\d.]+\)$/, '0.52)');
+                    ctx.lineWidth = 0.9;
+                    ctx.beginPath(); ctx.moveTo(dotX, dotY); ctx.lineTo(lineX, dotY); ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.beginPath(); ctx.arc(dotX, dotY, 2.2, 0, Math.PI*2);
+                    ctx.fillStyle = hexCol; ctx.fill();
+                    ctx.fillStyle = hexCol;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(labelTxt, txtX, dotY + 3.5);
+                }
+
+                // Cleavage furrow — at the cell equator
+                drawFurrowLabel(topCY, 0,  'Cleavage furrow',          'rgba(255,215,80,0.92)');
+                drawFurrowLabel(botCY, 0,  'Cleavage furrow',          'rgba(255,215,80,0.92)');
+
+                // Contractile ring — appears slightly later in the pinch
+                if (groove > 0.40) {
+                    const rA = Math.min(1, (groove - 0.40) / 0.30);
+                    ctx.globalAlpha = fA * rA;
+                    drawFurrowLabel(topCY, 15, 'Contractile ring (actin·myosin)', 'rgba(255,148,55,0.90)');
+                    drawFurrowLabel(botCY, 15, 'Contractile ring (actin·myosin)', 'rgba(255,148,55,0.90)');
                 }
                 ctx.restore();
             }
