@@ -3957,7 +3957,10 @@
                     drawAnnotation(ctx, nX + 80, nY + 96, "Smooth ER", labelAlpha, 'right');
                     if (organelleProgress > 0.75) {
                         const la2 = ((organelleProgress - 0.75) / 0.25) * (1 - organelleFade / 0.3);
-                        drawAnnotation(ctx, cx - cellRadiusX*0.45, cy - cellRadiusY*0.75, "Mitochondrion", la2, 'left');
+                        const mitPos = mitochondriaPositions[0];
+                        const mitX = cx + (mitPos.x - cx) * (cellRadiusX / 200) * 0.84;
+                        const mitY = cy + (mitPos.y - cy) * (cellRadiusY / 170) * 0.84;
+                        drawAnnotation(ctx, mitX, mitY, "Mitochondrion", la2, 'left');
                     }
                 }
 
