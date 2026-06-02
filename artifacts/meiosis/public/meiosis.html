@@ -122,6 +122,13 @@
             border-radius: 50%;
             flex-shrink: 0;
         }
+        .badge-divider {
+            width: 1px;
+            height: 18px;
+            background: rgba(196,226,240,0.30);
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
         footer {
             font-size: 0.7rem;
             text-align: center;
@@ -139,8 +146,9 @@
         </div>
         <div class="badge">
             <span class="badge-item"><span class="badge-dot" style="background:#FF8C00;"></span><b style="color:#FF8C00;">R</b> Maternal long</span>
-            <span class="badge-item"><span class="badge-dot" style="background:#2979FF;"></span><b style="color:#2979FF;">r</b> Paternal long</span>
             <span class="badge-item"><span class="badge-dot" style="background:#E53935;"></span><b style="color:#E53935;">Y</b> Maternal short</span>
+            <span class="badge-divider"></span>
+            <span class="badge-item"><span class="badge-dot" style="background:#2979FF;"></span><b style="color:#2979FF;">r</b> Paternal long</span>
             <span class="badge-item"><span class="badge-dot" style="background:#00BCD4;"></span><b style="color:#00BCD4;">y</b> Paternal short</span>
         </div>
     </div>
@@ -5651,11 +5659,9 @@
 
         // Render loop
         // ══════════════════════════════════════════════════════════════════════
-        //  PARENT CORNER PANELS  (restroom-sign style, fully canvas-drawn)
-        //  Top-left : Father + paternal chromosomes (blue r, cyan y)
-        //  Top-right: Mother + maternal chromosomes (orange R, red Y)
+        //  PARENT CORNER PANELS — removed; legend bar handles identification
         // ══════════════════════════════════════════════════════════════════════
-        function drawParentCorners() {
+        function drawParentCorners() { return; // no-op
             const PAD = 8, PW = 112, PH = 152;
             const STROKE = 'rgba(238,252,255,0.96)';
             const GLOW   = 'rgba(90,185,255,0.72)';
