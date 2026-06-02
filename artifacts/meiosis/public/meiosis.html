@@ -1796,7 +1796,8 @@
             ctx.restore();
 
             // ── Fallopian tubes — filled arching tubes ──
-            ctx.save(); ctx.lineWidth = 7; ctx.lineCap = 'round';
+            // lineWidth = 14 so zygote/cleavage/morula cells visibly sit inside the lumen
+            ctx.save(); ctx.lineWidth = 14; ctx.lineCap = 'round';
             const tubeLGrad = ctx.createLinearGradient(fx - 22, fy - 50, fx - 98, fy + 28);
             tubeLGrad.addColorStop(0, 'rgba(195,100,128,0.80)');
             tubeLGrad.addColorStop(1, 'rgba(168,82,110,0.75)');
@@ -1807,14 +1808,14 @@
             ctx.bezierCurveTo(fx - 118, fy - 14, fx - 112, fy + 16, fx - 98, fy + 28);
             ctx.stroke();
             // Highlight on left tube
-            ctx.strokeStyle = 'rgba(235,165,185,0.28)'; ctx.lineWidth = 2.5;
+            ctx.strokeStyle = 'rgba(235,165,185,0.28)'; ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(fx - 24, fy - 52);
             ctx.bezierCurveTo(fx - 52, fy - 74, fx - 90, fy - 64, fx - 107, fy - 38);
             ctx.bezierCurveTo(fx - 120, fy - 16, fx - 114, fy + 14, fx - 100, fy + 26);
             ctx.stroke();
             // Right tube
-            ctx.lineWidth = 7;
+            ctx.lineWidth = 14;
             const tubeRGrad = ctx.createLinearGradient(fx + 22, fy - 50, fx + 98, fy + 28);
             tubeRGrad.addColorStop(0, 'rgba(195,100,128,0.80)');
             tubeRGrad.addColorStop(1, 'rgba(168,82,110,0.75)');
@@ -1824,7 +1825,7 @@
             ctx.bezierCurveTo(fx + 50, fy - 72, fx + 88, fy - 62, fx + 105, fy - 36);
             ctx.bezierCurveTo(fx + 118, fy - 14, fx + 112, fy + 16, fx + 98, fy + 28);
             ctx.stroke();
-            ctx.strokeStyle = 'rgba(235,165,185,0.28)'; ctx.lineWidth = 2.5;
+            ctx.strokeStyle = 'rgba(235,165,185,0.28)'; ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.moveTo(fx + 24, fy - 52);
             ctx.bezierCurveTo(fx + 52, fy - 74, fx + 90, fy - 64, fx + 107, fy - 38);
@@ -3648,25 +3649,26 @@
                 const pulse = 1 + 0.10 * Math.sin(now * 0.005);
                 ctx.save();
                 ctx.globalAlpha = zyT;
-                const zG = ctx.createRadialGradient(ax, ay, 0, ax, ay, 36 * pulse);
+                // Scaled to fit inside the fallopian tube lumen (tube lineWidth=14 → inner r≈6px)
+                const zG = ctx.createRadialGradient(ax, ay, 0, ax, ay, 14 * pulse);
                 zG.addColorStop(0,   'rgba(215,155,255,0.88)');
                 zG.addColorStop(0.4, 'rgba(155,85,220,0.45)');
                 zG.addColorStop(1,   'rgba(95,35,175,0)');
-                ctx.beginPath(); ctx.arc(ax, ay, 36 * pulse, 0, Math.PI * 2);
+                ctx.beginPath(); ctx.arc(ax, ay, 14 * pulse, 0, Math.PI * 2);
                 ctx.fillStyle = zG; ctx.fill();
-                const zBody = ctx.createRadialGradient(ax-3, ay-3, 1, ax, ay, 15);
+                const zBody = ctx.createRadialGradient(ax-1.5, ay-1.5, 0.5, ax, ay, 6);
                 zBody.addColorStop(0,   'rgba(238,200,255,0.96)');
                 zBody.addColorStop(0.55,'rgba(188,98,240,0.90)');
                 zBody.addColorStop(1,   'rgba(128,38,200,0.85)');
-                ctx.beginPath(); ctx.arc(ax, ay, 15, 0, Math.PI * 2);
-                ctx.fillStyle = zBody; ctx.shadowBlur = 18; ctx.shadowColor = '#b040ff'; ctx.fill();
-                ctx.beginPath(); ctx.arc(ax, ay, 19, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(225,195,255,0.82)'; ctx.lineWidth = 2.5;
+                ctx.beginPath(); ctx.arc(ax, ay, 6, 0, Math.PI * 2);
+                ctx.fillStyle = zBody; ctx.shadowBlur = 8; ctx.shadowColor = '#b040ff'; ctx.fill();
+                ctx.beginPath(); ctx.arc(ax, ay, 8, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(225,195,255,0.82)'; ctx.lineWidth = 1.5;
                 ctx.shadowBlur = 0; ctx.stroke();
                 ctx.font = 'bold 9.5px Segoe UI, system-ui';
                 ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(228,198,255,0.96)';
                 ctx.shadowBlur = 9; ctx.shadowColor = '#c080ff';
-                ctx.fillText('Zygote (2n)', ax, ay - 26);
+                ctx.fillText('Zygote (2n)', ax, ay - 16);
                 ctx.restore();
                 if (zyT >= 1) {
                     _fertState.phase = 'cleavage';
@@ -3690,14 +3692,15 @@
                 }
                 const cellCounts = [1, 2, 4, 8, 16];
                 const nCells = cellCounts[_fertState.cleavageIdx];
-                const cellR = nCells===1?14 : nCells<=2?9 : nCells<=4?7 : nCells<=8?5.5 : 4.2;
-                const clustR = nCells===1?0  : nCells<=2?8 : nCells<=4?10 : nCells<=8?12 : 13.5;
+                // Scaled to fit inside tube lumen — cluster must stay ≤ 6px radius from centre
+                const cellR = nCells===1?6 : nCells<=2?4 : nCells<=4?3 : nCells<=8?2.4 : 1.8;
+                const clustR = nCells===1?0 : nCells<=2?3.5 : nCells<=4?4.5 : nCells<=8?5.5 : 6;
 
                 ctx.save();
-                const clG = ctx.createRadialGradient(ax, ay, 0, ax, ay, clustR + cellR + 10);
+                const clG = ctx.createRadialGradient(ax, ay, 0, ax, ay, clustR + cellR + 4);
                 clG.addColorStop(0,'rgba(195,155,255,0.32)');
                 clG.addColorStop(1,'rgba(145,75,215,0)');
-                ctx.beginPath(); ctx.arc(ax, ay, clustR + cellR + 10, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(ax, ay, clustR + cellR + 4, 0, Math.PI*2);
                 ctx.fillStyle = clG; ctx.fill();
 
                 for (let i = 0; i < nCells; i++) {
@@ -3713,20 +3716,22 @@
                     cG.addColorStop(1,   'rgba(112,32,182,0.80)');
                     ctx.beginPath(); ctx.arc(ccx, ccy, cellR, 0, Math.PI*2);
                     ctx.fillStyle = cG; ctx.fill();
-                    ctx.strokeStyle = 'rgba(210,172,255,0.68)'; ctx.lineWidth = 1.0; ctx.stroke();
-                    ctx.beginPath(); ctx.arc(ccx, ccy, cellR * 0.34, 0, Math.PI*2);
-                    ctx.fillStyle = 'rgba(88,18,148,0.82)'; ctx.fill();
+                    ctx.strokeStyle = 'rgba(210,172,255,0.68)'; ctx.lineWidth = 0.6; ctx.stroke();
+                    if (cellR >= 2) {
+                        ctx.beginPath(); ctx.arc(ccx, ccy, cellR * 0.34, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(88,18,148,0.82)'; ctx.fill();
+                    }
                 }
 
                 ctx.font = 'bold 9px Segoe UI, system-ui';
                 ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(210,175,255,0.96)';
-                ctx.fillText('Cleavage Division', ax, ay - clustR - cellR - 13);
+                ctx.fillText('Cleavage Division', ax, ay - clustR - cellR - 10);
                 ctx.font = '8.5px Segoe UI, system-ui';
                 ctx.fillStyle = 'rgba(188,148,255,0.85)';
-                ctx.fillText(nCells + '-Cell Stage', ax, ay + clustR + cellR + 14);
+                ctx.fillText(nCells + '-Cell Stage', ax, ay + clustR + cellR + 10);
                 if (nCells === 16) {
                     ctx.fillStyle = 'rgba(175,225,155,0.88)';
-                    ctx.fillText('→ Morula forming', ax, ay + clustR + cellR + 26);
+                    ctx.fillText('→ Morula forming', ax, ay + clustR + cellR + 20);
                 }
                 ctx.restore();
                 return;
@@ -3742,36 +3747,39 @@
                 const my3 = u*u*u*ay + 3*u*u*morT*(fy-52) + 3*u*morT*morT*(fy-50) + morT*morT*morT*fy;
 
                 ctx.save();
-                const mR = 17;
-                const glG = ctx.createRadialGradient(mx3, my3, 0, mx3, my3, mR + 14);
+                // Morula scaled to fit inside fallopian tube (inner r ≈ 6px)
+                const mR = 7;
+                const glG = ctx.createRadialGradient(mx3, my3, 0, mx3, my3, mR + 6);
                 glG.addColorStop(0,'rgba(188,148,255,0.52)');
                 glG.addColorStop(1,'rgba(118,58,202,0)');
-                ctx.beginPath(); ctx.arc(mx3, my3, mR + 14, 0, Math.PI*2);
+                ctx.beginPath(); ctx.arc(mx3, my3, mR + 6, 0, Math.PI*2);
                 ctx.fillStyle = glG; ctx.fill();
-                ctx.beginPath(); ctx.arc(mx3, my3, mR + 5, 0, Math.PI*2);
-                ctx.strokeStyle = 'rgba(212,182,255,0.62)'; ctx.lineWidth = 2.5; ctx.stroke();
-                for (let i = 0; i < 12; i++) {
-                    const ang = (i / 12) * Math.PI * 2 + 0.2;
-                    const cr = mR * 0.74, cr2 = 4.5;
+                ctx.beginPath(); ctx.arc(mx3, my3, mR + 2, 0, Math.PI*2);
+                ctx.strokeStyle = 'rgba(212,182,255,0.62)'; ctx.lineWidth = 1.2; ctx.stroke();
+                // Outer ring of 8 small blastomeres
+                for (let i = 0; i < 8; i++) {
+                    const ang = (i / 8) * Math.PI * 2 + 0.2;
+                    const cr = mR * 0.72, cr2 = 2.0;
                     const ccx = mx3 + Math.cos(ang)*cr, ccy = my3 + Math.sin(ang)*cr;
                     ctx.beginPath(); ctx.arc(ccx, ccy, cr2, 0, Math.PI*2);
                     ctx.fillStyle = 'rgba(212,168,255,0.86)'; ctx.fill();
-                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.7; ctx.stroke();
+                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.5; ctx.stroke();
                 }
+                // Inner cluster of 4 cells
                 for (let i = 0; i < 4; i++) {
                     const ang = (i / 4) * Math.PI * 2;
                     const ccx = mx3+Math.cos(ang)*mR*0.30, ccy=my3+Math.sin(ang)*mR*0.30;
-                    ctx.beginPath(); ctx.arc(ccx, ccy, 4.2, 0, Math.PI*2);
+                    ctx.beginPath(); ctx.arc(ccx, ccy, 1.8, 0, Math.PI*2);
                     ctx.fillStyle = 'rgba(212,168,255,0.86)'; ctx.fill();
-                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.7; ctx.stroke();
+                    ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.5; ctx.stroke();
                 }
                 ctx.font = 'bold 9px Segoe UI, system-ui';
                 ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(208,176,255,0.96)';
-                ctx.fillText('Morula (16-cell stage)', mx3, my3 - mR - 15);
+                ctx.fillText('Morula (16-cell stage)', mx3, my3 - mR - 10);
                 if (morT > 0.55) {
                     ctx.fillStyle = 'rgba(175,225,155,0.90)';
                     ctx.font = '8.5px Segoe UI, system-ui';
-                    ctx.fillText('Moving to Uterus →', mx3, my3 + mR + 15);
+                    ctx.fillText('Moving to Uterus →', mx3, my3 + mR + 10);
                 }
                 ctx.restore();
                 if (morT >= 1) { _fertState.phase = 'implantation'; _fertState.implantStart = now; }
