@@ -3307,6 +3307,7 @@
                     sperm: [], bubbleStep: 0, bubbleStepStart: 0,
                     zygoStart: 0, cleavageIdx: 0, cleavageStart: 0,
                     morStart: 0, implantStart: 0,
+                    mergeStart: 0,
                 };
                 for (let i = 0; i < 10; i++) {
                     _fertState.sperm.push({
@@ -3333,23 +3334,19 @@
                 }
             }
 
-            // ── Fertilization sperm path (6 segments, side-aware) ───────────────
+            // ── Fertilization sperm path (5 segments, side-aware) ───────────────
             // 0  vagina  1  cervix/uterus  2  uterine arc→horn
-            // 3  tube bezier 1 (horn→arch junction, follows drawn tube exactly)
-            // 4  tube bezier 2 extended (arch junction→briefly past fimbriae opening)
-            // 5  re-entry: curve back from fimbriae exit → ovum at ampulla junction
+            // 3  isthmus: tube horn → arch top  (mirrors drawn tube, reversed)
+            // 4  ampulla: arch top → ampulla-isthmus junction (ax, ay) — STOP HERE
             const _tubeEntryX = _isLeftTube ? fx - 22 : fx + 22;
             const _uArcCP1X   = _isLeftTube ? fx - 8  : fx + 8;
             const _uArcCP2X   = _isLeftTube ? fx - 14 : fx + 14;
             const _tsx         = _isLeftTube ? -1 : 1;          // side sign for x offsets
-            // Fimbriae exit point: ~12px past the tube opening in its outward tangent dir
-            const _exitX = _isLeftTube ? fx - 91 : fx + 91;
-            const _exitY = fy + 40;
 
             function getFPos(t) {
-                const s6  = t * 6;
-                const idx = Math.min(5, Math.floor(s6));
-                const s   = s6 - idx, u = 1 - s;
+                const s5  = t * 5;
+                const idx = Math.min(4, Math.floor(s5));
+                const s   = s5 - idx, u = 1 - s;
 
                 // Segs 0–2: vagina → cervix/uterus → uterine arc to tube horn
                 if (idx < 3) {
@@ -3365,26 +3362,19 @@
                     };
                 }
 
-                // Seg 3: first tube bezier — uterine horn → arch junction (matches drawn tube)
+                // Seg 3: isthmus — tube horn → arch top (follows drawn tube in reverse)
                 if (idx === 3) {
                     return {
-                        x: u*u*u*(fx+_tsx*22) + 3*u*u*s*(fx+_tsx*50) + 3*u*s*s*(fx+_tsx*88) + s*s*s*(fx+_tsx*105),
-                        y: u*u*u*(fy-50) + 3*u*u*s*(fy-72) + 3*u*s*s*(fy-62) + s*s*s*(fy-36),
+                        x: u*u*u*_tubeEntryX + 3*u*u*s*(fx+_tsx*22) + 3*u*s*s*(fx+_tsx*36) + s*s*s*(fx+_tsx*50),
+                        y: u*u*u*(fy-50) + 3*u*u*s*(fy-60) + 3*u*s*s*(fy-68) + s*s*s*(fy-72),
                     };
                 }
 
-                // Seg 4: second tube bezier extended — arch junction → briefly past fimbriae
-                if (idx === 4) {
-                    return {
-                        x: u*u*u*(fx+_tsx*105) + 3*u*u*s*(fx+_tsx*118) + 3*u*s*s*(fx+_tsx*110) + s*s*s*_exitX,
-                        y: u*u*u*(fy-36) + 3*u*u*s*(fy-14) + 3*u*s*s*(fy+22) + s*s*s*_exitY,
-                    };
-                }
-
-                // Seg 5: re-entry — loop back from fimbriae exit into tube lumen → ovum
+                // Seg 4: ampulla — arch top → ampulla-isthmus junction (ax, ay)
+                // Sperm stops HERE — no overshoot, no U-turn
                 return {
-                    x: u*u*u*_exitX + 3*u*u*s*(fx+_tsx*95) + 3*u*s*s*(fx+_tsx*88) + s*s*s*ax,
-                    y: u*u*u*_exitY + 3*u*u*s*(fy+20) + 3*u*s*s*(fy-32) + s*s*s*ay,
+                    x: u*u*u*(fx+_tsx*50) + 3*u*u*s*(fx+_tsx*72) + 3*u*s*s*(fx+_tsx*82) + s*s*s*ax,
+                    y: u*u*u*(fy-72) + 3*u*u*s*(fy-64) + 3*u*s*s*(fy-58) + s*s*s*ay,
                 };
             }
 
@@ -3459,21 +3449,86 @@
                 }
 
                 if (winner.progress >= 1.0) {
-                    // ── Sperm meets egg: freeze the cycle clock at luteal phase ─
-                    if (_clockFrozenFrac === null && _ovStartTime > 0) {
-                        const _e  = now - _ovStartTime;
-                        const _rw = _e / OV_CYCLE_MS;
-                        const _ci = Math.floor(_rw);
-                        const _cf = _rw - _ci;
-                        // Clamp to luteal (day 16+, frac >= 16/30) so it always
-                        // shows Luteal — never Ovulation or an earlier phase.
-                        _clockFrozenFrac = Math.max(16 / 30, _cf);
-                        // Clear any remaining blood drops so menses never resumes
-                        _bloodDrops.length = 0;
+                    winner.progress = 1.0; // clamp — never overshoot
+
+                    // ── First frame winner reaches egg: freeze clock, start merge ─
+                    if (!_fertState.mergeStart) {
+                        _fertState.mergeStart = now;
+                        if (_clockFrozenFrac === null && _ovStartTime > 0) {
+                            const _e  = now - _ovStartTime;
+                            const _rw = _e / OV_CYCLE_MS;
+                            const _ci = Math.floor(_rw);
+                            const _cf = _rw - _ci;
+                            _clockFrozenFrac = Math.max(16 / 30, _cf);
+                            _bloodDrops.length = 0;
+                        }
+                        // Kill all other sperm — the winner has arrived
+                        for (const sp of _fertState.sperm) {
+                            if (!sp.winner) sp.alive = false;
+                        }
                     }
-                    _fertState.phase = 'bubble';
-                    _fertState.bubbleStep = 0;
-                    _fertState.bubbleStepStart = now;
+
+                    // ── Merge animation: sperm pauses then absorbs into ovum ────
+                    const MERGE_MS = 1800;
+                    const mergeT = Math.min(1, (now - _fertState.mergeStart) / MERGE_MS);
+                    const easeIn = mergeT * mergeT;
+
+                    // Ovum brightens and expands as it absorbs the sperm
+                    const oPulse = 1 + 0.18 * Math.sin(now * 0.007) + 0.25 * easeIn;
+                    ctx.save();
+                    const absorbGrad = ctx.createRadialGradient(ax, ay, 0, ax, ay, 30 * oPulse);
+                    absorbGrad.addColorStop(0,   `rgba(255,255,180,${0.55 + 0.4*easeIn})`);
+                    absorbGrad.addColorStop(0.4, `rgba(255,210,80,${0.35 + 0.3*easeIn})`);
+                    absorbGrad.addColorStop(1,   'rgba(255,180,40,0)');
+                    ctx.beginPath(); ctx.arc(ax, ay, 30 * oPulse, 0, Math.PI*2);
+                    ctx.fillStyle = absorbGrad;
+                    ctx.fill();
+                    // Outer shockwave ring expanding outward
+                    const ringR = 22 + 28 * easeIn;
+                    const ringA = Math.max(0, 1 - mergeT * 1.4);
+                    ctx.beginPath(); ctx.arc(ax, ay, ringR, 0, Math.PI*2);
+                    ctx.strokeStyle = `rgba(255,232,80,${ringA * 0.85})`;
+                    ctx.lineWidth = 2.5 - 1.5 * easeIn;
+                    ctx.shadowBlur = 12; ctx.shadowColor = '#ffd000';
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // Winner sperm shrinks and fades into the ovum center
+                    const spermAlpha = Math.max(0, 1 - mergeT * 1.6);
+                    if (spermAlpha > 0) {
+                        const spScale = 1 - easeIn * 0.75;
+                        ctx.save();
+                        ctx.globalAlpha = spermAlpha;
+                        ctx.translate(ax, ay);
+                        ctx.scale(spScale, spScale);
+                        ctx.shadowBlur = 14; ctx.shadowColor = '#ffd000';
+                        ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI*2);
+                        ctx.fillStyle = 'rgba(255,232,80,0.96)';
+                        ctx.fill();
+                        ctx.restore();
+                    }
+
+                    // "Fertilization!" label fades in
+                    const labelA = Math.min(1, mergeT * 2.5);
+                    if (labelA > 0.05) {
+                        ctx.save();
+                        ctx.globalAlpha = labelA;
+                        ctx.font = 'bold 8px Segoe UI, system-ui';
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = 'rgba(255,240,120,1)';
+                        ctx.shadowBlur = 8; ctx.shadowColor = '#ffcc00';
+                        ctx.fillText('✦ Fertilization!', ax, ay - 34);
+                        ctx.font = '6.5px Segoe UI, system-ui';
+                        ctx.fillStyle = 'rgba(255,220,100,0.85)';
+                        ctx.fillText('Recombinant sperm + Ovum', ax, ay - 24);
+                        ctx.restore();
+                    }
+
+                    if (mergeT >= 1) {
+                        _fertState.phase = 'bubble';
+                        _fertState.bubbleStep = 0;
+                        _fertState.bubbleStepStart = now;
+                    }
                 }
 
                 // ── Ovum visibility indicator — pulsing ring drawn over sperm trails ──
