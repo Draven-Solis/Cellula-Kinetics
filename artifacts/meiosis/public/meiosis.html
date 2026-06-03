@@ -86,6 +86,9 @@
         .btn-fert.fert-active { box-shadow: 0 0 8px currentColor; }
         .btn-fert-off.fert-active { border-color:#5fc8e0; color:#5fc8e0; background:#0a1e28; }
         .btn-fert-on.fert-active  { border-color:#e07090; color:#e07090; background:#280a18; }
+        @keyframes replayPop { 0%{transform:scale(0.7);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+        #replayFertBtn { display:none; animation:replayPop 0.4s ease forwards; border:1.5px solid #6ec87a; color:#6ec87a; background:#0a1e0f; font-size:0.78rem; padding:4px 14px; }
+        #replayFertBtn:hover { background:#122518; box-shadow:0 0 10px rgba(110,200,122,0.55); }
         button:active { transform: translateY(1px); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         .info-panel {
@@ -169,10 +172,11 @@
     <style>
         @keyframes fadeWarn { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
     </style>
-    <div id="fertToggle" style="display:none;gap:6px;justify-content:center;align-items:center;margin-top:6px;">
+    <div id="fertToggle" style="display:none;gap:6px;justify-content:center;align-items:center;margin-top:6px;flex-wrap:wrap;">
         <span style="font-size:0.75rem;color:#9ab0b8;">Reproductive Mode:</span>
         <button id="fertOff" class="btn-fert btn-fert-off fert-active">No Fertilization</button>
         <button id="fertOn"  class="btn-fert btn-fert-on">Fertilization Mode</button>
+        <button id="replayFertBtn" class="btn-fert">⟳ Replay Fertilization</button>
     </div>
 
     <div class="info-panel">
@@ -4131,6 +4135,9 @@
                          ['anchoring into wall', 'rgba(185,148,255,0.85)', false]],
                         'rgba(190,135,255,0.80)', trAlpha);
                 }
+                // Show Replay button once implantation is fully complete
+                const _rBtn = document.getElementById('replayFertBtn');
+                if (_rBtn) _rBtn.style.display = (implantT >= 1) ? 'inline-block' : 'none';
                 ctx.restore();
             }
         }
@@ -6822,6 +6829,7 @@
             if (ftDiv) ftDiv.style.display = 'none';
             document.getElementById('fertOff')?.classList.add('fert-active');
             document.getElementById('fertOn')?.classList.remove('fert-active');
+            document.getElementById('replayFertBtn').style.display = 'none';
         }
 
         // ── Cached DOM refs — queried once instead of every animation frame ──
@@ -6842,19 +6850,33 @@
             _ovum = null;  // clear paused ovum; new one will spawn next ovulation
             document.getElementById('fertOff').classList.add('fert-active');
             document.getElementById('fertOn').classList.remove('fert-active');
+            document.getElementById('replayFertBtn').style.display = 'none';
         });
-        document.getElementById("fertOn").addEventListener("click", () => {
+        function _startFertilizationRace() {
             _fertilizationMode = true;
             _fertState = null; _ampullaX = 0; _ampullaY = 0;
             _clockFrozenFrac = null;
-            _ovum = null; _ovStartTime = 0; // restart ovulation cycle
-            _ovCycleCount = 0;            // reset counter so cycle detection starts clean
-            _ovulationOccurred = false;   // allow exactly one ovulation in the new cycle
-            _fertilizationSuccessful = false; // clear lock so fertilization can run fresh
+            _ovum = null; _ovStartTime = 0;
+            _ovCycleCount = 0;
+            _ovulationOccurred = false;
+            _fertilizationSuccessful = false;
             _bloodDrops.length = 0; _lastDropSpawn = 0;
+            document.getElementById('replayFertBtn').style.display = 'none';
+        }
+
+        document.getElementById("fertOn").addEventListener("click", () => {
+            _startFertilizationRace();
             document.getElementById('fertOn').classList.add('fert-active');
             document.getElementById('fertOff').classList.remove('fert-active');
         });
+
+        document.getElementById("replayFertBtn").addEventListener("click", () => {
+            _startFertilizationRace();
+            // Keep fertOn highlighted since we're staying in fertilization mode
+            document.getElementById('fertOn').classList.add('fert-active');
+            document.getElementById('fertOff').classList.remove('fert-active');
+        });
+
         updateTargetPositions();
         render();
     })();
