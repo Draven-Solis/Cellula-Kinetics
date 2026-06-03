@@ -3385,6 +3385,51 @@
                 };
             }
 
+            // ── Callout-label helper ─────────────────────────────────────────
+            // Draws a dotted leader from (ancX,ancY) to (lblX,lblY), a small
+            // dot at each end, a dark pill background, then text lines.
+            // lines: [[text, cssColor, bold?], ...]   alpha: 0-1
+            function drawCallout(ancX, ancY, lblX, lblY, lines, dotColor, alpha) {
+                if ((alpha || 1) <= 0.02) return;
+                ctx.save();
+                ctx.globalAlpha = alpha || 1;
+                // Dotted leader line
+                ctx.setLineDash([2, 3.5]);
+                ctx.strokeStyle = dotColor;
+                ctx.lineWidth = 1.2;
+                ctx.beginPath(); ctx.moveTo(ancX, ancY); ctx.lineTo(lblX, lblY); ctx.stroke();
+                ctx.setLineDash([]);
+                // Anchor dot (on the cell)
+                ctx.beginPath(); ctx.arc(ancX, ancY, 2.8, 0, Math.PI*2);
+                ctx.fillStyle = dotColor; ctx.fill();
+                // Terminal dot (at label)
+                ctx.beginPath(); ctx.arc(lblX, lblY, 2.2, 0, Math.PI*2);
+                ctx.fillStyle = dotColor; ctx.fill();
+                // Measure widest line for pill
+                ctx.font = 'bold 11px Segoe UI, system-ui';
+                let maxW = 0;
+                for (const l of lines) { const w = ctx.measureText(l[0]).width; if (w > maxW) maxW = w; }
+                const pillH = lines.length * 16 + 8;
+                // Dark pill background
+                ctx.globalAlpha = (alpha || 1) * 0.40;
+                ctx.fillStyle = 'rgba(3,8,22,1)';
+                ctx.beginPath(); ctx.roundRect(lblX - maxW/2 - 9, lblY - 14, maxW + 18, pillH, 6); ctx.fill();
+                ctx.globalAlpha = alpha || 1;
+                // Text lines
+                lines.forEach(([txt, clr, bold], i) => {
+                    ctx.font = `${bold !== false ? 'bold ' : ''}${bold === false ? 10 : 11}px Segoe UI, system-ui`;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = clr;
+                    ctx.shadowBlur = bold !== false ? 6 : 3;
+                    ctx.shadowColor = dotColor;
+                    ctx.fillText(txt, lblX, lblY + i * 16);
+                });
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+            // Convenience: label offset toward canvas centre (away from ovary side)
+            const _calloutSign = _isLeftTube ? 1 : -1; // +1 → right, -1 → left
+
             // ── Phase: sperm_migration ───────────────────────────────────────
             if (_fertState.phase === 'sperm_migration') {
                 const winner = _fertState.sperm[0];
@@ -3697,11 +3742,15 @@
                     ctx.strokeStyle = 'rgba(255,210,50,0.60)'; ctx.lineWidth = 0.8;
                     ctx.lineCap = 'round'; ctx.stroke();
                     ctx.restore();
-                    // small label
-                    ctx.font = 'bold 7px Segoe UI, system-ui';
-                    ctx.fillStyle = `rgba(255,238,110,${Math.min(1, bT * 2.5) * 0.88})`;
-                    ctx.shadowBlur = 3; ctx.shadowColor = '#ffcc00';
-                    ctx.fillText('★ recombinant sperm', sx, by - 13);
+                    // callout label — sperm at ovum surface
+                    {
+                        const fa = Math.min(1, bT * 2.5);
+                        const lx = sx + _calloutSign * 66, ly = by - 26;
+                        drawCallout(sx + _calloutSign * 2.6, by, lx, ly,
+                            [['★ Recombinant Sperm', 'rgba(255,238,110,0.98)', true],
+                             ['approaching ovum surface', 'rgba(255,215,80,0.82)', false]],
+                            'rgba(255,220,60,0.80)', fa);
+                    }
                 } else if (bStep === 1) {
                     // Subtle fusion flash at the ovum surface
                     const flash = Math.sin(bT * Math.PI) * 0.70;
@@ -3711,10 +3760,14 @@
                     fg.addColorStop(1, `rgba(255,140,30,0)`);
                     ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI*2);
                     ctx.fillStyle = fg; ctx.fill();
-                    ctx.font = '7.5px Segoe UI, system-ui';
-                    ctx.fillStyle = `rgba(255,210,130,${bT * 0.88})`;
-                    ctx.shadowBlur = 3; ctx.shadowColor = '#ffbb44';
-                    ctx.fillText('Sperm nucleus entering', bx, by - 13);
+                    // callout label — fusion flash
+                    {
+                        const lx = bx + _calloutSign * 66, ly = by - 26;
+                        drawCallout(bx + _calloutSign * 8, by, lx, ly,
+                            [['Membrane Fusion', 'rgba(255,215,130,0.98)', true],
+                             ['Sperm nucleus entering', 'rgba(255,195,100,0.85)', false]],
+                            'rgba(255,185,60,0.80)', bT);
+                    }
                 } else if (bStep === 2) {
                     // Two pronuclei visible inside the ovum
                     const pa = Math.min(1, bT * 2);
@@ -3725,9 +3778,14 @@
                         ctx.globalAlpha = pa; ctx.fill();
                     });
                     ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-                    ctx.font = '7.5px Segoe UI, system-ui';
-                    ctx.fillStyle = `rgba(210,185,255,${pa * 0.90})`;
-                    ctx.fillText('♀(n) + ♂(n) pronuclei', bx, by - 13);
+                    // callout label — pronuclei
+                    {
+                        const lx = bx + _calloutSign * 66, ly = by - 26;
+                        drawCallout(bx + _calloutSign * 4, by, lx, ly,
+                            [['Pronuclear Fusion', 'rgba(215,190,255,0.98)', true],
+                             ['♀(n) + ♂(n) pronuclei', 'rgba(190,165,255,0.88)', false]],
+                            'rgba(185,140,255,0.80)', pa);
+                    }
                 } else {
                     // Zygote pulse — compact, sized to tube lumen
                     const pulse = 1 + 0.07 * Math.sin(now * 0.006);
@@ -3738,9 +3796,14 @@
                     ctx.beginPath(); ctx.arc(bx, by, 5.5*pulse, 0, Math.PI*2);
                     ctx.fillStyle = zg; ctx.shadowBlur = 9; ctx.shadowColor = '#a040ff'; ctx.fill();
                     ctx.shadowBlur = 0;
-                    ctx.font = 'bold 8px Segoe UI, system-ui';
-                    ctx.fillStyle = 'rgba(212,185,255,0.95)';
-                    ctx.fillText('Diploid Zygote (2n)', bx, by - 13);
+                    // callout label — zygote formed
+                    {
+                        const lx = bx + _calloutSign * 66, ly = by - 26;
+                        drawCallout(bx + _calloutSign * 5.5, by, lx, ly,
+                            [['Diploid Zygote (2n)', 'rgba(218,192,255,0.98)', true],
+                             ['Fertilization complete', 'rgba(195,165,255,0.88)', false]],
+                            'rgba(175,120,255,0.85)', 1);
+                    }
                 }
 
                 ctx.shadowBlur = 0;
@@ -3782,10 +3845,16 @@
                 ctx.beginPath(); ctx.arc(zx, zy, 6, 0, Math.PI * 2);
                 ctx.strokeStyle = 'rgba(225,195,255,0.68)'; ctx.lineWidth = 1.0;
                 ctx.shadowBlur = 0; ctx.stroke();
-                ctx.font = 'bold 8.5px Segoe UI, system-ui';
-                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(228,198,255,0.92)';
-                ctx.shadowBlur = 6; ctx.shadowColor = '#c080ff';
-                ctx.fillText('Zygote (2n)', zx, zy - 12);
+                // callout label — zygote drifting in tube
+                {
+                    const lx = zx + _calloutSign * 65, ly = zy - 24;
+                    const ancR = 6;
+                    const ang = Math.atan2(ly - zy, lx - zx);
+                    drawCallout(zx + Math.cos(ang)*ancR, zy + Math.sin(ang)*ancR, lx, ly,
+                        [['Zygote (2n)', 'rgba(232,202,255,0.98)', true],
+                         ['Moving through isthmus', 'rgba(205,172,255,0.85)', false]],
+                        'rgba(185,130,255,0.82)', zyT);
+                }
                 ctx.restore();
                 if (zyT >= 1) {
                     _fertState.phase = 'cleavage';
@@ -3847,15 +3916,20 @@
                     }
                 }
 
-                ctx.font = 'bold 9px Segoe UI, system-ui';
-                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(210,175,255,0.96)';
-                ctx.fillText('Cleavage Division', clcx, clcy - clustR - cellR - 9);
-                ctx.font = '8px Segoe UI, system-ui';
-                ctx.fillStyle = 'rgba(188,148,255,0.85)';
-                ctx.fillText(nCells + '-Cell Stage', clcx, clcy + clustR + cellR + 9);
-                if (nCells === 16) {
-                    ctx.fillStyle = 'rgba(175,225,155,0.88)';
-                    ctx.fillText('→ Morula forming', clcx, clcy + clustR + cellR + 19);
+                // callout labels — cleavage cluster
+                {
+                    const clR = clustR + cellR;
+                    const ang = Math.atan2(-26 - clcy, (clcx + _calloutSign * 64) - clcx);
+                    // Above label: stage name + cell count
+                    const topLines = [
+                        ['Cleavage Division', 'rgba(215,182,255,0.98)', true],
+                        [nCells + '-Cell Stage', 'rgba(192,155,255,0.88)', false],
+                    ];
+                    if (nCells === 16) topLines.push(['→ Morula forming', 'rgba(178,228,158,0.90)', false]);
+                    drawCallout(
+                        clcx + Math.cos(ang) * clR, clcy + Math.sin(ang) * clR,
+                        clcx + _calloutSign * 66, clcy - 28,
+                        topLines, 'rgba(188,142,255,0.82)', 1);
                 }
                 ctx.restore();
                 return;
@@ -3916,13 +3990,22 @@
                     ctx.fillStyle = 'rgba(212,168,255,0.86)'; ctx.fill();
                     ctx.strokeStyle = 'rgba(152,88,218,0.58)'; ctx.lineWidth = 0.5; ctx.stroke();
                 }
-                ctx.font = 'bold 9px Segoe UI, system-ui';
-                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(208,176,255,0.96)';
-                ctx.fillText('Morula (16-cell stage)', mx3, my3 - mR - 10);
-                if (morT > 0.55) {
-                    ctx.fillStyle = 'rgba(175,225,155,0.90)';
-                    ctx.font = '8.5px Segoe UI, system-ui';
-                    ctx.fillText('Moving to Uterus →', mx3, my3 + mR + 10);
+                // callout label — morula
+                {
+                    const outerR = mR + 2;
+                    // While in tube: label toward centre; once in uterus (morT>TUBE_END): label above
+                    const inTube = morT <= TUBE_END;
+                    const lx = inTube ? mx3 + _calloutSign * 64 : mx3;
+                    const ly = inTube ? my3 - 24 : my3 - 36;
+                    const ang = Math.atan2(ly - my3, lx - mx3);
+                    const morLines = [
+                        ['Morula', 'rgba(212,180,255,0.98)', true],
+                        ['16-cell stage', 'rgba(190,158,255,0.88)', false],
+                    ];
+                    if (morT > 0.55) morLines.push(['Moving to Uterus →', 'rgba(178,228,158,0.90)', false]);
+                    drawCallout(
+                        mx3 + Math.cos(ang) * outerR, my3 + Math.sin(ang) * outerR,
+                        lx, ly, morLines, 'rgba(182,125,255,0.82)', 1);
                 }
                 ctx.restore();
                 if (morT >= 1) { _fertState.phase = 'implantation'; _fertState.implantStart = now; }
@@ -4023,18 +4106,30 @@
                     ctx.restore();
                 }
 
-                // ── Labels ───────────────────────────────────────────────────────
-                ctx.font = 'bold 9px Segoe UI, system-ui';
-                ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(158,222,138,0.96)';
-                ctx.shadowBlur = 7; ctx.shadowColor = 'rgba(100,200,80,0.38)';
-                ctx.fillText('Implantation — Fundus Endometrium', ix, iy - 26);
-                ctx.shadowBlur = 0;
-                ctx.font = '7.5px Segoe UI, system-ui';
-                ctx.fillStyle = 'rgba(198,158,255,0.80)';
-                ctx.fillText('Blastocyst embedding in endometrium', ix, iy - 16);
+                // ── Callout labels — implantation ───────────────────────────
+                // Main label: above blastocyst, anchor at top of trophoblast ring
+                {
+                    drawCallout(ix, iy - 17, ix, iy - 52,
+                        [['Implantation', 'rgba(162,228,142,0.98)', true],
+                         ['Fundus Endometrium', 'rgba(145,212,125,0.88)', false],
+                         ['Blastocyst embedding', 'rgba(202,162,255,0.82)', false]],
+                        'rgba(148,220,118,0.80)', 1);
+                }
+                // ICM label: to the side, anchor on blastocoel side
                 if (implantT > 0.08) {
-                    ctx.fillStyle = 'rgba(188,235,168,0.75)';
-                    ctx.fillText('Inner cell mass developing ✓', ix, iy + 28);
+                    const icmAlpha = Math.min(1, (implantT - 0.08) / 0.25);
+                    drawCallout(ix - 4 - 10, iy, ix - 72, iy + 10,
+                        [['Inner Cell Mass', 'rgba(195,240,175,0.98)', true],
+                         ['developing embryo ✓', 'rgba(172,228,152,0.85)', false]],
+                        'rgba(148,220,118,0.80)', icmAlpha);
+                }
+                // Trophoblast label: to the other side
+                if (implantT > 0.3) {
+                    const trAlpha = Math.min(1, (implantT - 0.3) / 0.3);
+                    drawCallout(ix + 17, iy, ix + 74, iy + 8,
+                        [['Trophoblast', 'rgba(208,172,255,0.98)', true],
+                         ['anchoring into wall', 'rgba(185,148,255,0.85)', false]],
+                        'rgba(190,135,255,0.80)', trAlpha);
                 }
                 ctx.restore();
             }
